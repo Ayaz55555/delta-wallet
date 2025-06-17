@@ -16,9 +16,12 @@ import {
   tokenAddress,
   tokenAbi,
 } from "@/constants/contract";
-import { Loader2 } from "lucide-react";
+import { Loader2, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
+import { sdk } from "@farcaster/frame-sdk";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faShareFromSquare } from "@fortawesome/free-solid-svg-icons";
 
 interface MarketBuyInterfaceProps {
   marketId: number;
@@ -31,7 +34,12 @@ interface MarketBuyInterfaceProps {
   };
 }
 
-type BuyingStep = "initial" | "amount" | "allowance" | "confirm";
+type BuyingStep =
+  | "initial"
+  | "amount"
+  | "allowance"
+  | "confirm"
+  | "purchaseSuccess";
 type Option = "A" | "B" | null;
 
 const MAX_BET = 500;
@@ -384,6 +392,29 @@ export function MarketBuyInterface({
       setIsConfirming(false);
     }
   };
+
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL || "https://buster-mkt.vercel.app";
+  const marketPageUrl = `${appUrl}/market/${marketId}/details`;
+
+  const handleShareAfterPurchase = async () => {
+    try {
+      await sdk.actions.composeCast({
+        text: `I just bought shares in this market on Buster Market: ${
+          market?.question || `Market ${marketId}`
+        }`,
+        embeds: [marketPageUrl],
+      });
+    } catch (error) {
+      console.error("Failed to compose cast after purchase:", error);
+      toast({
+        title: "Share Error",
+        description: "Could not open share dialog.",
+        variant: "destructive",
+      });
+    }
+    handleCancel(); // Close the interface after attempting to share
+  };
   // Effect to handle transaction confirmation
   useEffect(() => {
     if (isTxConfirmed) {
@@ -399,7 +430,7 @@ export function MarketBuyInterface({
         setBuyingStep("confirm");
       } else if (buyingStep === "confirm") {
         refetchBalance(); // Refetch balance after successful purchase
-        handleCancel(); // Reset UI
+        setBuyingStep("purchaseSuccess"); // Move to success/share step
       }
       setIsApproving(false);
       setIsConfirming(false);
@@ -607,7 +638,7 @@ export function MarketBuyInterface({
                   </Button>
                 </div>
               </div>
-            ) : (
+            ) : buyingStep === "confirm" ? (
               <div className="flex flex-col border-2 border-gray-200 rounded-lg p-4">
                 <h3 className="text-lg font-bold mb-2">Confirm Purchase</h3>
                 <p className="mb-4 text-sm">
@@ -643,7 +674,33 @@ export function MarketBuyInterface({
                   </Button>
                 </div>
               </div>
-            )}
+            ) : buyingStep === "purchaseSuccess" ? (
+              <div className="flex flex-col items-center gap-4 p-4 border-2 border-green-500 rounded-lg bg-green-50">
+                <h3 className="text-lg font-bold text-green-700">
+                  Purchase Successful!
+                </h3>
+                <p className="text-sm text-center text-gray-600">
+                  You successfully bought {amount}{" "}
+                  {selectedOption === "A" ? market.optionA : market.optionB}{" "}
+                  shares.
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    onClick={handleShareAfterPurchase}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <FontAwesomeIcon
+                      icon={faShareFromSquare}
+                      className="mr-2 h-4 w-4"
+                    />
+                    Share this Market
+                  </Button>
+                  <Button onClick={handleCancel} variant="outline">
+                    Done
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
       </div>
