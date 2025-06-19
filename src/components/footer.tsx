@@ -51,7 +51,7 @@ export function Footer() {
               </p>
               <ol className="list-decimal pl-5 mb-3 space-y-1 text-gray-700">
                 <li>Sign in with your wallet</li>
-                <li>Claim 5,000 BSTR shares</li>
+                <li>Claim 5,000 $buster shares</li>
                 <li>Browse available predictions</li>
                 <li>Place your bets!</li>
               </ol>
