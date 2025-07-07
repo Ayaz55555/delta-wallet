@@ -247,10 +247,10 @@ export async function GET(request: NextRequest) {
         style={{
           display: "flex",
           flexDirection: "column",
-          width: "1120px",
-          height: "680px",
+          width: "900px",
+          height: "600px",
           backgroundColor: colors.background,
-          padding: "40px",
+          padding: "30px",
           fontFamily: "Inter",
         }}
       >
@@ -542,8 +542,8 @@ export async function GET(request: NextRequest) {
     );
 
     const svg = await satori(jsx, {
-      width: 1120,
-      height: 680,
+      width: 900,
+      height: 600,
       fonts: [
         {
           name: "Inter",
