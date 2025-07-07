@@ -8,6 +8,7 @@ import { useConnect, useAccount, useDisconnect, Connector } from "wagmi";
 export function Navbar() {
   const [username, setUsername] = useState<string | null>(null);
   const [pfpUrl, setPfpUrl] = useState<string | null>(null);
+  const [pfpError, setPfpError] = useState(false);
   const { connect, connectors } = useConnect();
   const { isConnected: isAccountConnected } = useAccount();
 
@@ -77,32 +78,22 @@ export function Navbar() {
       (validConnectors.length > 0 ? validConnectors[0] : undefined);
 
     if (wagmiIsConnected && address) {
-      // Connected state
+      // Connected state - Single button for both desktop and mobile
       return (
-        <div className="flex items-center gap-2">
-          {/* Desktop View: Address + Separate Disconnect Button */}
-          <span className="text-sm font-medium text-gray-700 hidden md:inline">
+        <button
+          onClick={() => wagmiDisconnect()}
+          style={{ backgroundColor: "#7A42B9" }}
+          className="hover:bg-opacity-90 text-white px-3 py-1 rounded-full text-sm font-medium transition-colors duration-200 whitespace-nowrap"
+        >
+          {/* Desktop: Show more characters */}
+          <span className="hidden md:inline">
             {`${address.slice(0, 6)}...${address.slice(-4)}`}
           </span>
-          <button
-            onClick={() => wagmiDisconnect()}
-            style={{ backgroundColor: "#7A42B9" }}
-            className="hover:bg-opacity-90 text-white px-3 py-1 rounded-full text-sm font-medium transition-colors duration-200"
-          >
-            Disconnect
-          </button>
-
-          {/* Mobile View: Single Button with Address, acts as Disconnect */}
-          <div className="md:hidden">
-            <button
-              onClick={() => wagmiDisconnect()}
-              style={{ backgroundColor: "#7A42B9" }}
-              className="text-white px-3 py-1 rounded-full text-sm font-medium transition-colors duration-200 whitespace-nowrap"
-            >
-              {`${address.slice(0, 4)}...${address.slice(-3)}`}{" "}
-            </button>
-          </div>
-        </div>
+          {/* Mobile: Show fewer characters */}
+          <span className="md:hidden">
+            {`${address.slice(0, 4)}...${address.slice(-3)}`}
+          </span>
+        </button>
       );
     } else if (wagmiIsConnecting) {
       // Connecting state
@@ -134,14 +125,19 @@ export function Navbar() {
       {/* Desktop View */}
       <div className="hidden md:flex justify-between items-center mb-6 px-4 py-3 bg-gradient-to-r from-[#7A42B9] to-gray-100 rounded-lg shadow-sm">
         <div className="flex items-center gap-3">
-          {pfpUrl && (
+          {pfpUrl && !pfpError ? (
             <Image
               src={pfpUrl}
-              alt="PFP"
+              alt="Profile Picture"
               width={40}
               height={40}
               className="rounded-full"
+              onError={() => setPfpError(true)}
             />
+          ) : (
+            <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-sm font-medium">
+              {username?.charAt(0)?.toUpperCase() || "P"}
+            </div>
           )}
           <div className="text-xl font-bold text-gray-800">
             Welcome {username || "Player"}
@@ -153,14 +149,19 @@ export function Navbar() {
       {/* Mobile View */}
       <div className="md:hidden flex justify-between items-center mb-4 px-3 py-2 bg-gradient-to-r from-[#7A42B9] to-gray-100 rounded-lg shadow-sm">
         <div className="flex items-center gap-2">
-          {pfpUrl && (
+          {pfpUrl && !pfpError ? (
             <Image
               src={pfpUrl}
-              alt="PFP"
+              alt="Profile Picture"
               width={32}
               height={32}
               className="rounded-full"
+              onError={() => setPfpError(true)}
             />
+          ) : (
+            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
+              {username?.charAt(0)?.toUpperCase() || "P"}
+            </div>
           )}
           <div className="text-sm font-medium text-gray-800">
             Welcome {username || "Player"}
