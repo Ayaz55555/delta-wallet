@@ -14,6 +14,22 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
+        hostname: "images.farcaster.xyz",
+      },
+      {
+        protocol: "https",
+        hostname: "farcaster.xyz",
+      },
+      {
+        protocol: "https",
+        hostname: "farcaster.com",
+      },
+      {
+        protocol: "https",
+        hostname: "imgur.com",
+      },
+      {
+        protocol: "https",
         hostname: "res.cloudinary.com",
       },
       {

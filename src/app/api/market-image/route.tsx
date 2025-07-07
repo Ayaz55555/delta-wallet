@@ -492,7 +492,7 @@ export async function GET(request: NextRequest) {
                   color: colors.text.primary,
                 }}
               >
-                {(Number(total) / 10 ** 18).toLocaleString()} Buster
+                {`${(Number(total) / 10 ** 18).toLocaleString()} Buster`}
               </div>
             </div>
             {market.resolved && (
@@ -519,7 +519,10 @@ export async function GET(request: NextRequest) {
                     color: colors.success,
                   }}
                 >
-                  {market.outcome === 1 ? "Option A" : "Option B"}
+                  {truncateText(
+                    market.outcome === 1 ? market.optionA : market.optionB,
+                    30
+                  )}
                 </div>
               </div>
             )}
