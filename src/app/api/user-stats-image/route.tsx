@@ -222,7 +222,7 @@ export async function GET(request: NextRequest) {
       });
     };
 
-    const displayUsername = username || "Anonymous Trader";
+    const displayUsername = username || "Anon Trader";
     const displayAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
 
     const jsx = (
@@ -265,6 +265,8 @@ export async function GET(request: NextRequest) {
                 <img
                   src={pfpUrl}
                   alt="Profile"
+                  width={50}
+                  height={50}
                   style={{
                     width: "100%",
                     height: "100%",
@@ -306,8 +308,9 @@ export async function GET(request: NextRequest) {
         <div
           style={{
             display: "flex",
-            flex: 1,
             gap: "24px",
+            height: "320px",
+            marginBottom: "8px",
           }}
         >
           {/* Win Rate Circle */}
@@ -319,7 +322,7 @@ export async function GET(request: NextRequest) {
               justifyContent: "center",
               backgroundColor: colors.cardBg,
               borderRadius: "20px",
-              padding: "32px",
+              padding: "20px",
               border: `2px solid ${colors.border}`,
               flex: "0 0 280px",
             }}
@@ -327,10 +330,10 @@ export async function GET(request: NextRequest) {
             <div
               style={{
                 display: "flex",
-                fontSize: "48px",
+                fontSize: "40px",
                 fontWeight: "bold",
                 color: colors.success,
-                marginBottom: "8px",
+                marginBottom: "6px",
               }}
             >
               {stats.winRate.toFixed(1)}%
@@ -364,7 +367,7 @@ export async function GET(request: NextRequest) {
                   gap: "16px",
                   backgroundColor: "#dcfce7",
                   borderRadius: "16px",
-                  padding: "24px",
+                  padding: "16px",
                   flex: 1,
                   border: "2px solid #bbf7d0",
                 }}
@@ -384,7 +387,7 @@ export async function GET(request: NextRequest) {
                   <div
                     style={{
                       display: "flex",
-                      fontSize: "28px",
+                      fontSize: "24px",
                       fontWeight: "bold",
                       color: colors.success,
                     }}
@@ -401,7 +404,7 @@ export async function GET(request: NextRequest) {
                   gap: "16px",
                   backgroundColor: "#fecaca",
                   borderRadius: "16px",
-                  padding: "24px",
+                  padding: "16px",
                   flex: 1,
                   border: "2px solid #fca5a5",
                 }}
@@ -421,7 +424,7 @@ export async function GET(request: NextRequest) {
                   <div
                     style={{
                       display: "flex",
-                      fontSize: "28px",
+                      fontSize: "24px",
                       fontWeight: "bold",
                       color: colors.danger,
                     }}
@@ -440,7 +443,7 @@ export async function GET(request: NextRequest) {
                 gap: "16px",
                 backgroundColor: "#dbeafe",
                 borderRadius: "16px",
-                padding: "24px",
+                padding: "16px",
                 border: "2px solid #93c5fd",
               }}
             >
@@ -478,7 +481,7 @@ export async function GET(request: NextRequest) {
                 backgroundColor:
                   Number(stats.netWinnings) >= 0 ? "#dcfce7" : "#fecaca",
                 borderRadius: "16px",
-                padding: "24px",
+                padding: "16px",
                 border: `2px solid ${
                   Number(stats.netWinnings) >= 0 ? "#bbf7d0" : "#fca5a5"
                 }`,
@@ -520,20 +523,21 @@ export async function GET(request: NextRequest) {
         <div
           style={{
             display: "flex",
-            justifyContent: "space-around",
-            alignItems: "center",
-            marginTop: "24px",
-            padding: "24px",
-            backgroundColor: "rgba(37, 99, 235, 0.05)",
-            borderRadius: "16px",
-            border: `1px solid ${colors.border}`,
+            gap: "16px",
           }}
         >
+          {/* Total Bets */}
           <div
             style={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              justifyContent: "center",
+              padding: "16px",
+              backgroundColor: "rgba(37, 99, 235, 0.05)",
+              borderRadius: "12px",
+              border: `1px solid ${colors.border}`,
+              flex: "1",
             }}
           >
             <div
@@ -558,11 +562,18 @@ export async function GET(request: NextRequest) {
             </div>
           </div>
 
+          {/* Avg Bet Size */}
           <div
             style={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              justifyContent: "center",
+              padding: "16px",
+              backgroundColor: "rgba(124, 58, 237, 0.05)",
+              borderRadius: "12px",
+              border: `1px solid ${colors.border}`,
+              flex: "1",
             }}
           >
             <div
@@ -593,18 +604,25 @@ export async function GET(request: NextRequest) {
             </div>
           </div>
 
+          {/* Farcaster ID */}
           {fid && (
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
+                justifyContent: "center",
+                padding: "16px",
+                backgroundColor: "rgba(37, 99, 235, 0.05)",
+                borderRadius: "12px",
+                border: `1px solid ${colors.border}`,
+                flex: "1",
               }}
             >
               <div
                 style={{
                   display: "flex",
-                  fontSize: "18px",
+                  fontSize: "24px",
                   fontWeight: "bold",
                   color: colors.primary,
                   marginBottom: "4px",
