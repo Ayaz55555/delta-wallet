@@ -9,9 +9,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // import { sdk } from "@farcaster/miniapp-sdk";
 export const config = createConfig({
   chains: [base],
-  transports: { [base.id]: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL) },
+  transports: {
+    [base.id]: http(), // Use default RPC for Farcaster compatibility
+  },
   connectors: [
-    miniAppConnector(),
+    miniAppConnector(), // Farcaster connector first
     metaMask({
       dappMetadata: {
         name: "Policast",
