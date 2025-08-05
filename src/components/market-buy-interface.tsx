@@ -818,6 +818,21 @@ export function MarketBuyInterface({
                       setIsProcessing(true);
                       try {
                         const amountInUnits = toUnits(amount, tokenDecimals);
+
+                        // First check if user has sufficient allowance
+                        await refetchAllowance();
+                        if (amountInUnits > userAllowance) {
+                          toast({
+                            title: "Insufficient Allowance",
+                            description:
+                              "Please approve tokens first before completing purchase.",
+                            variant: "destructive",
+                          });
+                          setBuyingStep("allowance");
+                          setIsProcessing(false);
+                          return;
+                        }
+
                         await writeContractAsync({
                           address: contractAddress,
                           abi: contractAbi,
@@ -828,12 +843,33 @@ export function MarketBuyInterface({
                             amountInUnits,
                           ],
                         });
-                      } catch (error) {
+                      } catch (error: unknown) {
                         console.error("Manual purchase error:", error);
+                        let errorMessage =
+                          "Failed to complete purchase. Please try again.";
+
+                        if (error instanceof Error) {
+                          if (error.message.includes("insufficient funds")) {
+                            errorMessage =
+                              "Insufficient ETH for gas fees. Please add more ETH to your wallet.";
+                          } else if (error.message.includes("user rejected")) {
+                            errorMessage =
+                              "Transaction was rejected in your wallet.";
+                          } else if (
+                            error.message.includes("execution reverted")
+                          ) {
+                            errorMessage =
+                              "Transaction failed. Please check your token balance and allowance.";
+                          } else {
+                            errorMessage =
+                              (error as BaseError)?.shortMessage ||
+                              errorMessage;
+                          }
+                        }
+
                         toast({
                           title: "Purchase Failed",
-                          description:
-                            "Failed to complete purchase. Please try again.",
+                          description: errorMessage,
                           variant: "destructive",
                         });
                         setIsProcessing(false);
