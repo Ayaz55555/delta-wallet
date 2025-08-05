@@ -52,7 +52,7 @@ export async function generateMetadata(
       button: {
         title: "Check Yours",
         action: {
-          type: "launch_frame" as const,
+          type: "launch_miniapp" as const,
           name: "Policast Stats",
           url: checkYoursUrl,
           iconUrl: pfpUrl || "https://buster-mkt.vercel.app/icon.png",

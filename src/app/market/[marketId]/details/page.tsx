@@ -81,7 +81,7 @@ export async function generateMetadata(
       button: {
         title: "View Market Details",
         action: {
-          type: "launch_frame" as const,
+          type: "launch_miniapp" as const,
           name: market.question.substring(0, 30),
           url: marketUrl,
           iconUrl: "https://buster-mkt.vercel.app/icon.png",

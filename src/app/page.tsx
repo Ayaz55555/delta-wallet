@@ -18,7 +18,7 @@ export const metadata: Metadata = {
       button: {
         title: "Explore Markets🏪",
         action: {
-          type: "launch_frame",
+          type: "launch_miniapp",
           name: "Policast",
           iconUrl: "https://buster-mkt.vercel.app/icon.png",
           url: "https://buster-mkt.vercel.app",
