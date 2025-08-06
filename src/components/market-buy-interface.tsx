@@ -8,6 +8,7 @@ import {
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt,
+  useConnectorClient,
   useSendCalls,
   type BaseError,
 } from "wagmi";
@@ -41,7 +42,6 @@ type BuyingStep =
   | "amount"
   | "allowance"
   | "confirm"
-  | "batchPartialSuccess"
   | "purchaseSuccess";
 type Option = "A" | "B" | null;
 
@@ -93,10 +93,11 @@ export function MarketBuyInterface({
     null
   );
   // const [batchingFailed, setBatchingFailed] = useState(false);
-  const { sendCalls, isPending: isSendingCalls } = useSendCalls();
-
-  // Add a state to track if we're waiting for the second transaction in a batch
-  const [, setBatchApprovalCompleted] = useState(false);
+  const {
+    sendCalls,
+    isPending: isSendingCalls,
+    error: sendCallsError,
+  } = useSendCalls();
 
   // Wagmi hooks for reading token data
   const { data: tokenSymbolData, error: tokenSymbolError } = useReadContract({
@@ -386,44 +387,9 @@ export function MarketBuyInterface({
               title: "Batch Transaction Submitted",
               description: "Approve + Buy submitted in a single transaction.",
             });
-
-            // Set a flag to wait and verify if the purchase actually went through
-            setBatchApprovalCompleted(true);
-
-            // Wait a bit and then check if the purchase actually worked
-            setTimeout(async () => {
-              const initialBalance = balance;
-              await refetchBalance();
-              await refetchAllowance();
-
-              // Wait a bit more for the transaction to process
-              setTimeout(async () => {
-                await refetchBalance();
-
-                // Check if balance actually decreased (indicating successful purchase)
-                await refetchBalance();
-
-                // If balance didn't decrease significantly, likely only approval went through
-                if (balance === initialBalance) {
-                  console.log(
-                    "Batch transaction likely only completed approval, not purchase"
-                  );
-                  toast({
-                    title: "⚠️ Batch Partially Completed",
-                    description:
-                      "Approval succeeded, but purchase may need to be completed manually. Please click 'Complete Purchase' below.",
-                    variant: "destructive",
-                    duration: 8000,
-                  });
-                  setBuyingStep("batchPartialSuccess");
-                } else {
-                  setBuyingStep("purchaseSuccess");
-                }
-
-                setIsProcessing(false);
-                setBatchApprovalCompleted(false);
-              }, 2000);
-            }, 3000);
+            refetchBalance();
+            setBuyingStep("purchaseSuccess");
+            setIsProcessing(false);
           },
           onError: (err) => {
             console.error("Batch transaction failed, falling back:", err);
@@ -511,10 +477,7 @@ export function MarketBuyInterface({
           setBuyingStep("confirm");
           setIsProcessing(false);
         });
-      } else if (
-        buyingStep === "confirm" ||
-        buyingStep === "batchPartialSuccess"
-      ) {
+      } else if (buyingStep === "confirm") {
         toast({
           title: "Purchase Confirmed!",
           description: "Your shares have been purchased successfully.",
@@ -789,131 +752,6 @@ export function MarketBuyInterface({
                       isConfirmingTx ||
                       isSendingCalls
                     }
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : buyingStep === "batchPartialSuccess" ? (
-              <div className="flex flex-col border-2 border-orange-500 rounded-lg p-4 bg-orange-50">
-                <h3 className="text-lg font-bold mb-2 text-orange-700">
-                  ⚠️ Complete Your Purchase
-                </h3>
-                <p className="mb-4 text-sm">
-                  <span className="font-semibold text-orange-800">
-                    Your approval was successful, but the purchase needs to be
-                    completed!
-                  </span>
-                  <br />
-                  <br />
-                  The Farcaster wallet batch transaction only completed the
-                  approval step. Click &quot;Complete Purchase&quot; below to
-                  buy your {amount}{" "}
-                  {selectedOption === "A" ? market.optionA : market.optionB}{" "}
-                  shares.
-                </p>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    onClick={async () => {
-                      setIsProcessing(true);
-                      try {
-                        const amountInUnits = toUnits(amount, tokenDecimals);
-
-                        // First check if user has sufficient allowance
-                        await refetchAllowance();
-                        if (amountInUnits > userAllowance) {
-                          toast({
-                            title: "Insufficient Allowance",
-                            description:
-                              "Please approve tokens first before completing purchase.",
-                            variant: "destructive",
-                          });
-                          setBuyingStep("allowance");
-                          setIsProcessing(false);
-                          return;
-                        }
-
-                        // Try to estimate gas first to give better error messages
-                        try {
-                          console.log(
-                            "Estimating gas for buyShares transaction..."
-                          );
-
-                          await writeContractAsync({
-                            address: contractAddress,
-                            abi: contractAbi,
-                            functionName: "buyShares",
-                            args: [
-                              BigInt(marketId),
-                              selectedOption === "A",
-                              amountInUnits,
-                            ],
-                          });
-                        } catch (estimationError) {
-                          console.error(
-                            "Gas estimation failed:",
-                            estimationError
-                          );
-                          throw estimationError;
-                        }
-                      } catch (error: unknown) {
-                        console.error("Manual purchase error:", error);
-                        let errorMessage =
-                          "Failed to complete purchase. Please try again.";
-
-                        if (error instanceof Error) {
-                          console.error("Transaction error details:", {
-                            message: error.message,
-                            cause: error.cause,
-                            stack: error.stack,
-                          });
-
-                          if (error.message.includes("insufficient funds")) {
-                            errorMessage =
-                              "Insufficient ETH for gas fees. Please add more ETH to your wallet. (You have 0.055 ETH - this might be a gas estimation issue)";
-                          } else if (error.message.includes("user rejected")) {
-                            errorMessage =
-                              "Transaction was rejected in your wallet.";
-                          } else if (
-                            error.message.includes("execution reverted")
-                          ) {
-                            errorMessage =
-                              "Transaction failed. Please check your token balance and allowance.";
-                          } else if (error.message.includes("gas")) {
-                            errorMessage =
-                              "Gas estimation failed. The transaction might be failing for another reason.";
-                          } else {
-                            errorMessage =
-                              (error as BaseError)?.shortMessage ||
-                              errorMessage;
-                          }
-                        }
-
-                        toast({
-                          title: "Purchase Failed",
-                          description: errorMessage,
-                          variant: "destructive",
-                        });
-                        setIsProcessing(false);
-                      }
-                    }}
-                    className="min-w-[120px] bg-orange-600 hover:bg-orange-700"
-                    disabled={isProcessing || isWritePending || isConfirmingTx}
-                  >
-                    {isProcessing || isWritePending || isConfirmingTx ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Purchasing...
-                      </>
-                    ) : (
-                      "Complete Purchase"
-                    )}
-                  </Button>
-                  <Button
-                    onClick={handleCancel}
-                    variant="outline"
-                    className="min-w-[120px]"
-                    disabled={isProcessing || isWritePending || isConfirmingTx}
                   >
                     Cancel
                   </Button>
