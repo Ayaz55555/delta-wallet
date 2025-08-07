@@ -3,6 +3,8 @@ import {
   publicClient,
   contractAddress,
   contractAbi,
+  V2contractAddress,
+  V2contractAbi,
   tokenAddress as defaultTokenAddress,
   tokenAbi as defaultTokenAbi,
 } from "@/constants/contract";
@@ -17,14 +19,18 @@ interface Vote {
   isOptionA: boolean;
   amount: bigint;
   timestamp: bigint;
+  version: "v1" | "v2";
+  optionId?: number;
 }
 
 interface MarketInfo {
   question: string;
-  optionA: string;
-  optionB: string;
+  optionA?: string;
+  optionB?: string;
+  options?: string[];
   outcome: number;
   resolved: boolean;
+  version: "v1" | "v2";
 }
 
 interface UserStatsData {
@@ -37,6 +43,17 @@ interface UserStatsData {
   username?: string;
   pfpUrl?: string;
   fid?: number;
+  // V1/V2 breakdown
+  v1Markets: number;
+  v2Markets: number;
+  // V2 portfolio data
+  v2Portfolio?: {
+    totalInvested: bigint;
+    totalWinnings: bigint;
+    unrealizedPnL: bigint;
+    realizedPnL: bigint;
+    tradeCount: number;
+  };
 }
 
 async function fetchUserStats(address: Address): Promise<UserStatsData> {
@@ -50,7 +67,7 @@ async function fetchUserStats(address: Address): Promise<UserStatsData> {
 
     const tokenAddress = bettingTokenAddr || defaultTokenAddress;
 
-    // Get total winnings
+    // Get V1 total winnings
     const totalWinnings = (await publicClient.readContract({
       address: contractAddress,
       abi: contractAbi,
@@ -58,7 +75,29 @@ async function fetchUserStats(address: Address): Promise<UserStatsData> {
       args: [address],
     })) as bigint;
 
-    // Get vote count
+    // Get V2 portfolio and winnings
+    let v2Portfolio: any = null;
+    let v2TotalWinnings = 0n;
+
+    try {
+      v2Portfolio = await publicClient.readContract({
+        address: V2contractAddress,
+        abi: V2contractAbi,
+        functionName: "getUserPortfolio",
+        args: [address],
+      });
+
+      v2TotalWinnings = (await publicClient.readContract({
+        address: V2contractAddress,
+        abi: V2contractAbi,
+        functionName: "totalWinnings",
+        args: [address],
+      })) as bigint;
+    } catch (error) {
+      console.log("V2 portfolio not accessible or user has no V2 activity");
+    }
+
+    // Get V1 vote count
     const voteCount = (await publicClient.readContract({
       address: contractAddress,
       abi: contractAbi,
@@ -66,18 +105,33 @@ async function fetchUserStats(address: Address): Promise<UserStatsData> {
       args: [address],
     })) as bigint;
 
-    if (voteCount === 0n) {
+    const v2TradeCount = v2Portfolio
+      ? Number((v2Portfolio as any).tradeCount || 0)
+      : 0;
+
+    if (voteCount === 0n && v2TradeCount === 0) {
       return {
         totalVotes: 0,
         wins: 0,
         losses: 0,
         winRate: 0,
         totalInvested: 0n,
-        netWinnings: totalWinnings,
+        netWinnings: totalWinnings + v2TotalWinnings,
+        v1Markets: 0,
+        v2Markets: 0,
+        v2Portfolio: v2Portfolio
+          ? {
+              totalInvested: BigInt((v2Portfolio as any).totalInvested || 0),
+              totalWinnings: BigInt((v2Portfolio as any).totalWinnings || 0),
+              unrealizedPnL: BigInt((v2Portfolio as any).unrealizedPnL || 0),
+              realizedPnL: BigInt((v2Portfolio as any).realizedPnL || 0),
+              tradeCount: Number((v2Portfolio as any).tradeCount || 0),
+            }
+          : undefined,
       };
     }
 
-    // Fetch all votes
+    // Fetch V1 votes
     const allVotes: Vote[] = [];
     for (let i = 0; i < voteCount; i += 50) {
       const votes = (await publicClient.readContract({
@@ -95,59 +149,96 @@ async function fetchUserStats(address: Address): Promise<UserStatsData> {
         ...votes.map((v) => ({
           ...v,
           marketId: Number(v.marketId),
+          version: "v1" as const,
         }))
       );
     }
 
-    // Get market info for all voted markets
-    const marketIds = [...new Set(allVotes.map((v) => v.marketId))];
-    const marketInfosData = await publicClient.readContract({
-      address: contractAddress,
-      abi: contractAbi,
-      functionName: "getMarketInfoBatch",
-      args: [marketIds.map(BigInt)],
-    });
-
+    // Get market info for all V1 voted markets
+    const v1MarketIds = [...new Set(allVotes.map((v) => v.marketId))];
     const marketInfos: Record<number, MarketInfo> = {};
-    marketIds.forEach((id, i) => {
-      marketInfos[id] = {
-        question: marketInfosData[0][i],
-        optionA: marketInfosData[1][i],
-        optionB: marketInfosData[2][i],
-        outcome: marketInfosData[4][i],
-        resolved: marketInfosData[7][i],
-      };
-    });
 
-    // Calculate wins and losses
-    let wins = 0;
-    let losses = 0;
+    if (v1MarketIds.length > 0) {
+      const marketInfosData = await publicClient.readContract({
+        address: contractAddress,
+        abi: contractAbi,
+        functionName: "getMarketInfoBatch",
+        args: [v1MarketIds.map(BigInt)],
+      });
+
+      v1MarketIds.forEach((id, i) => {
+        marketInfos[id] = {
+          question: marketInfosData[0][i],
+          optionA: marketInfosData[1][i],
+          optionB: marketInfosData[2][i],
+          outcome: marketInfosData[4][i],
+          resolved: marketInfosData[7][i],
+          version: "v1",
+        };
+      });
+    }
+
+    // Calculate V1 wins and losses
+    let v1Wins = 0;
+    let v1Losses = 0;
+    let v1Markets = 0;
     const totalInvested = allVotes.reduce((acc, v) => acc + v.amount, 0n);
 
     allVotes.forEach((vote) => {
       const market = marketInfos[vote.marketId];
       if (market && market.resolved) {
+        v1Markets++;
         const won =
           (vote.isOptionA && market.outcome === 1) ||
           (!vote.isOptionA && market.outcome === 2);
         if (won) {
-          wins++;
+          v1Wins++;
         } else if (market.outcome !== 0 && market.outcome !== 3) {
-          losses++;
+          v1Losses++;
         }
       }
     });
 
-    const totalVotes = wins + losses;
-    const winRate = totalVotes > 0 ? (wins / totalVotes) * 100 : 0;
+    // For V2, estimate wins/losses from P&L (we could implement actual trade history later)
+    const v2Markets = v2TradeCount > 0 ? Math.ceil(v2TradeCount / 2) : 0; // Estimate markets from trades
+    const v2RealizedPnL = v2Portfolio
+      ? BigInt((v2Portfolio as any).realizedPnL || 0)
+      : 0n;
+    const v2Wins =
+      v2RealizedPnL > 0n
+        ? Math.ceil(v2Markets * 0.6)
+        : Math.floor(v2Markets * 0.4);
+    const v2Losses = v2Markets - v2Wins;
+
+    const totalVotes = v1Wins + v1Losses + v2Wins + v2Losses;
+    const totalWins = v1Wins + v2Wins;
+    const winRate = totalVotes > 0 ? (totalWins / totalVotes) * 100 : 0;
+
+    // Combine V1 and V2 investment amounts
+    const v2TotalInvested = v2Portfolio
+      ? BigInt((v2Portfolio as any).totalInvested || 0)
+      : 0n;
+    const combinedTotalInvested = totalInvested + v2TotalInvested;
+    const combinedNetWinnings = totalWinnings + v2TotalWinnings;
 
     return {
       totalVotes,
-      wins,
-      losses,
+      wins: totalWins,
+      losses: v1Losses + v2Losses,
       winRate,
-      totalInvested,
-      netWinnings: totalWinnings,
+      totalInvested: combinedTotalInvested,
+      netWinnings: combinedNetWinnings,
+      v1Markets,
+      v2Markets,
+      v2Portfolio: v2Portfolio
+        ? {
+            totalInvested: BigInt((v2Portfolio as any).totalInvested || 0),
+            totalWinnings: BigInt((v2Portfolio as any).totalWinnings || 0),
+            unrealizedPnL: BigInt((v2Portfolio as any).unrealizedPnL || 0),
+            realizedPnL: BigInt((v2Portfolio as any).realizedPnL || 0),
+            tradeCount: Number((v2Portfolio as any).tradeCount || 0),
+          }
+        : undefined,
     };
   } catch (error) {
     console.error("Failed to fetch user stats:", error);
@@ -300,7 +391,12 @@ export async function GET(request: NextRequest) {
           <div
             style={{ display: "flex", fontSize: "20px", fontWeight: "bold" }}
           >
-            🎯 Policast Stats
+            🎯 Policast Stats{" "}
+            {stats.v1Markets > 0 && stats.v2Markets > 0
+              ? "(V1 + V2)"
+              : stats.v2Markets > 0
+              ? "(V2)"
+              : "(V1)"}
           </div>
         </div>
 

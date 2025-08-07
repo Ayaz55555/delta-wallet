@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
           <div
             style={{ display: "flex", fontSize: "20px", fontWeight: "bold" }}
           >
-            🎯 Buster Stats
+            🎯 Policast Stats
           </div>
         </div>
 

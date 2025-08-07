@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { contract, contractAbi, publicClient } from "@/constants/contract";
+import {
+  contract,
+  contractAbi,
+  publicClient,
+  V2contractAddress,
+  V2contractAbi,
+} from "@/constants/contract";
 import satori from "satori";
 import sharp from "sharp";
 import { promises as fs } from "fs";
 import path from "node:path";
 import { format } from "date-fns";
 
-interface MarketImageData {
+interface MarketImageDataV1 {
   question: string;
   optionA: string;
   optionB: string;
@@ -15,17 +21,47 @@ interface MarketImageData {
   endTime: bigint;
   resolved: boolean;
   outcome: number;
+  version: "v1";
 }
 
-type MarketInfoContractReturn = readonly [
-  string,
-  string,
-  string,
-  bigint,
-  number,
-  bigint,
-  bigint,
-  boolean
+interface MarketImageDataV2 {
+  question: string;
+  description: string;
+  endTime: bigint;
+  category: number;
+  optionCount: number;
+  resolved: boolean;
+  disputed: boolean;
+  winningOptionId: number;
+  creator: string;
+  version: "v2";
+}
+
+type MarketImageData = MarketImageDataV1 | MarketImageDataV2;
+
+// V1 Market Info Contract Return
+type MarketInfoV1ContractReturn = readonly [
+  string, // question
+  string, // optionA
+  string, // optionB
+  bigint, // endTime
+  number, // outcome
+  bigint, // totalOptionAShares
+  bigint, // totalOptionBShares
+  boolean // resolved
+];
+
+// V2 Market Info Contract Return
+type MarketInfoV2ContractReturn = readonly [
+  string, // question
+  string, // description
+  bigint, // endTime
+  number, // category
+  bigint, // optionCount
+  boolean, // resolved
+  boolean, // disputed
+  bigint, // winningOptionId
+  string // creator
 ];
 
 async function fetchMarketData(marketId: string): Promise<MarketImageData> {
@@ -35,36 +71,77 @@ async function fetchMarketData(marketId: string): Promise<MarketImageData> {
       throw new Error("NEXT_PUBLIC_ALCHEMY_RPC_URL is not set");
     }
 
-    const marketData = (await publicClient.readContract({
-      address: contract.address,
-      abi: contractAbi,
-      functionName: "getMarketInfo",
-      args: [BigInt(marketId)],
-    })) as MarketInfoContractReturn;
+    const marketIdBigInt = BigInt(marketId);
 
-    console.log(
-      `Market Image API: Raw data received for marketId ${marketId}:`,
-      marketData
-    );
+    // Try V2 first (newer contract)
+    try {
+      const v2MarketData = (await publicClient.readContract({
+        address: V2contractAddress,
+        abi: V2contractAbi,
+        functionName: "getMarketInfo",
+        args: [marketIdBigInt],
+      })) as MarketInfoV2ContractReturn;
 
-    if (!marketData || !Array.isArray(marketData) || marketData.length < 8) {
-      console.error(
-        `Market Image API: Invalid or incomplete data received from contract for marketId ${marketId}`,
-        marketData
-      );
-      throw new Error("Incomplete data received from contract");
+      // If successful and market exists, return V2 data
+      if (v2MarketData[0]) {
+        // question exists
+        console.log(
+          `Market Image API: Found V2 market ${marketId}:`,
+          v2MarketData
+        );
+        return {
+          question: v2MarketData[0],
+          description: v2MarketData[1],
+          endTime: v2MarketData[2],
+          category: v2MarketData[3],
+          optionCount: Number(v2MarketData[4]),
+          resolved: v2MarketData[5],
+          disputed: v2MarketData[6],
+          winningOptionId: Number(v2MarketData[7]),
+          creator: v2MarketData[8],
+          version: "v2",
+        };
+      }
+    } catch (error) {
+      // V2 market doesn't exist, try V1
+      console.log(`Market ${marketId} not found in V2, trying V1...`);
     }
 
-    return {
-      question: marketData[0],
-      optionA: marketData[1],
-      optionB: marketData[2],
-      endTime: marketData[3],
-      outcome: marketData[4],
-      totalOptionAShares: marketData[5],
-      totalOptionBShares: marketData[6],
-      resolved: marketData[7],
-    };
+    // Try V1
+    try {
+      const v1MarketData = (await publicClient.readContract({
+        address: contract.address,
+        abi: contractAbi,
+        functionName: "getMarketInfo",
+        args: [marketIdBigInt],
+      })) as MarketInfoV1ContractReturn;
+
+      // If successful and market exists, return V1 data
+      if (v1MarketData[0]) {
+        // question exists
+        console.log(
+          `Market Image API: Found V1 market ${marketId}:`,
+          v1MarketData
+        );
+        return {
+          question: v1MarketData[0],
+          optionA: v1MarketData[1],
+          optionB: v1MarketData[2],
+          endTime: v1MarketData[3],
+          outcome: v1MarketData[4],
+          totalOptionAShares: v1MarketData[5],
+          totalOptionBShares: v1MarketData[6],
+          resolved: v1MarketData[7],
+          version: "v1",
+        };
+      }
+    } catch (error) {
+      console.log(`Market ${marketId} not found in V1 either`);
+    }
+
+    throw new Error(
+      `Market ${marketId} not found in either V1 or V2 contracts`
+    );
   } catch (error) {
     console.error(
       `Market Image API: Failed to fetch or parse market ${marketId}:`,
@@ -218,14 +295,6 @@ export async function GET(request: NextRequest) {
       market
     );
 
-    const total = market.totalOptionAShares + market.totalOptionBShares;
-    const aPercentage =
-      total > 0n ? Number((market.totalOptionAShares * 100n) / total) : 50;
-    const bPercentage =
-      total > 0n ? Number((market.totalOptionBShares * 100n) / total) : 50;
-
-    const timeStatus = formatTimeStatus(market.endTime);
-
     // Truncate long questions and adjust font sizes
     const truncateText = (text: string, maxLength: number) => {
       return text.length > maxLength
@@ -233,9 +302,30 @@ export async function GET(request: NextRequest) {
         : text;
     };
 
+    let aPercentage = 50;
+    let bPercentage = 50;
+    let optionAText = "";
+    let optionBText = "";
+
+    if (market.version === "v1") {
+      const total = market.totalOptionAShares + market.totalOptionBShares;
+      aPercentage =
+        total > 0n ? Number((market.totalOptionAShares * 100n) / total) : 50;
+      bPercentage =
+        total > 0n ? Number((market.totalOptionBShares * 100n) / total) : 50;
+      optionAText = truncateText(market.optionA, 40);
+      optionBText = truncateText(market.optionB, 40);
+    } else {
+      // For V2, we'll show different information
+      optionAText = `${market.optionCount} Options`;
+      optionBText = market.resolved ? `Resolved` : `Active`;
+      aPercentage = market.resolved ? 100 : 0;
+      bPercentage = market.resolved ? 0 : 100;
+    }
+
+    const timeStatus = formatTimeStatus(market.endTime);
+
     const questionText = truncateText(market.question, 120);
-    const optionAText = truncateText(market.optionA, 40);
-    const optionBText = truncateText(market.optionB, 40);
 
     // Dynamic font sizing based on question length
     const questionFontSize =
@@ -275,7 +365,7 @@ export async function GET(request: NextRequest) {
               fontWeight: "bold",
             }}
           >
-            🎯 Buster Market
+            🎯 Policast {market.version === "v2" ? "V2" : ""}
           </div>
           <div
             style={{
@@ -284,7 +374,8 @@ export async function GET(request: NextRequest) {
               opacity: 0.9,
             }}
           >
-            Market #{cleanMarketId}
+            Market #{cleanMarketId}{" "}
+            {market.version === "v2" ? "(Multi-Option)" : "(Binary)"}
           </div>
         </div>
 
@@ -500,7 +591,14 @@ export async function GET(request: NextRequest) {
                   color: colors.text.primary,
                 }}
               >
-                {`${(Number(total) / 10 ** 18).toLocaleString()} Buster`}
+                {market.version === "v1"
+                  ? `${(
+                      Number(
+                        market.totalOptionAShares + market.totalOptionBShares
+                      ) /
+                      10 ** 18
+                    ).toLocaleString()} BSTR`
+                  : "Multi-Option Market"}
               </div>
             </div>
             {market.resolved && (
@@ -529,10 +627,14 @@ export async function GET(request: NextRequest) {
                     color: colors.success,
                   }}
                 >
-                  {truncateText(
-                    market.outcome === 1 ? market.optionA : market.optionB,
-                    30
-                  )}
+                  {market.version === "v1"
+                    ? truncateText(
+                        market.outcome === 1
+                          ? market.optionA!
+                          : market.optionB!,
+                        30
+                      )
+                    : `Option ${market.winningOptionId + 1}`}
                 </div>
               </div>
             )}

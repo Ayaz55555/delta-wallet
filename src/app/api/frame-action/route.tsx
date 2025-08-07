@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-//eslint-disable-next-line @typescript-eslint/no-unused-vars
-type MarketInfoContractReturn = readonly [
+
+// V1 and V2 market info types for potential future use
+type MarketInfoV1ContractReturn = readonly [
   string,
   string,
   string,
@@ -9,6 +10,18 @@ type MarketInfoContractReturn = readonly [
   bigint,
   bigint,
   boolean
+];
+
+type MarketInfoV2ContractReturn = readonly [
+  string, // question
+  string[], // options
+  bigint, // endTime
+  number, // category
+  bigint, // optionCount
+  boolean, // resolved
+  bigint, // resolutionTime
+  bigint, // winningOptionId
+  bigint // totalVolume
 ];
 
 export async function POST(req: NextRequest) {

@@ -16,8 +16,12 @@ import { useMarketAnalytics } from "@/hooks/useMarketAnalytics";
 interface MarketChartProps {
   marketId: string;
   market?: {
-    optionA: string;
-    optionB: string;
+    // V1 Binary options
+    optionA?: string;
+    optionB?: string;
+    // V2 Multi-options
+    options?: string[];
+    version?: "v1" | "v2";
   };
 }
 
@@ -61,11 +65,27 @@ export function MarketChart({ marketId, market }: MarketChartProps) {
   }
 
   // Convert decimal values to percentages for display
-  const chartData = analyticsData.priceHistory.map((item) => ({
-    ...item,
-    optionA: Math.round(item.optionA * 100),
-    optionB: Math.round(item.optionB * 100),
-  }));
+  // For V2 markets, analytics might return multi-option data
+  const chartData = analyticsData.priceHistory.map((item) => {
+    if (market?.version === "v2" && market?.options) {
+      // V2 multi-option: convert each option percentage
+      const converted: any = { ...item };
+      market.options.forEach((_, index) => {
+        const optionKey = `option${index}`;
+        if ((item as any)[optionKey] !== undefined) {
+          converted[optionKey] = Math.round((item as any)[optionKey] * 100);
+        }
+      });
+      return converted;
+    } else {
+      // V1 binary: convert optionA and optionB
+      return {
+        ...item,
+        optionA: Math.round(item.optionA * 100),
+        optionB: Math.round(item.optionB * 100),
+      };
+    }
+  });
 
   return (
     <div className="w-full">
@@ -114,22 +134,58 @@ export function MarketChart({ marketId, market }: MarketChartProps) {
               formatter={(value, name) => [`${value}%`, name]}
             />
             <Legend />
-            <Line
-              type="monotone"
-              dataKey="optionA"
-              stroke="hsl(var(--primary))"
-              strokeWidth={2}
-              name={market?.optionA || "Option A"}
-              dot={{ fill: "hsl(var(--primary))", strokeWidth: 2, r: 4 }}
-            />
-            <Line
-              type="monotone"
-              dataKey="optionB"
-              stroke="hsl(var(--secondary))"
-              strokeWidth={2}
-              name={market?.optionB || "Option B"}
-              dot={{ fill: "hsl(var(--secondary))", strokeWidth: 2, r: 4 }}
-            />
+            {market?.version === "v2" && market?.options ? (
+              // V2 Multi-option lines
+              market.options.map((option, index) => {
+                const colors = [
+                  "hsl(var(--primary))",
+                  "hsl(var(--secondary))",
+                  "#ef4444", // red
+                  "#f97316", // orange
+                  "#eab308", // yellow
+                  "#22c55e", // green
+                  "#06b6d4", // cyan
+                  "#3b82f6", // blue
+                  "#8b5cf6", // violet
+                  "#f59e0b", // amber
+                ];
+                return (
+                  <Line
+                    key={index}
+                    type="monotone"
+                    dataKey={`option${index}`}
+                    stroke={colors[index % colors.length]}
+                    strokeWidth={2}
+                    name={option}
+                    dot={{
+                      fill: colors[index % colors.length],
+                      strokeWidth: 2,
+                      r: 4,
+                    }}
+                  />
+                );
+              })
+            ) : (
+              // V1 Binary options
+              <>
+                <Line
+                  type="monotone"
+                  dataKey="optionA"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={2}
+                  name={market?.optionA || "Option A"}
+                  dot={{ fill: "hsl(var(--primary))", strokeWidth: 2, r: 4 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="optionB"
+                  stroke="hsl(var(--secondary))"
+                  strokeWidth={2}
+                  name={market?.optionB || "Option B"}
+                  dot={{ fill: "hsl(var(--secondary))", strokeWidth: 2, r: 4 }}
+                />
+              </>
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>

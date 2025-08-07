@@ -1,0 +1,312 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
+import { Button } from "./ui/button";
+import { useAccount, useReadContract } from "wagmi";
+import { V2contractAddress, V2contractAbi } from "@/constants/contract";
+import { MultiOptionProgress } from "./multi-option-progress";
+import MarketTime from "./market-time";
+import { MarketResolved } from "./market-resolved";
+import { MarketPending } from "./market-pending";
+import { MarketV2BuyInterface } from "./market-v2-buy-interface";
+import { MarketV2SharesDisplay } from "./market-v2-shares-display";
+import { sdk } from "@farcaster/miniapp-sdk";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faShareFromSquare,
+  faUpRightAndDownLeftFromCenter,
+} from "@fortawesome/free-solid-svg-icons";
+import { MessageCircle } from "lucide-react";
+import { MarketV2, MarketOption, MarketCategory } from "@/types/types";
+
+// Add LinkifiedText component for URL preview support
+const LinkifiedText = ({ text }: { text: string }) => {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+
+  const getDomainFromUrl = (url: string) => {
+    try {
+      return new URL(url).hostname.replace("www.", "");
+    } catch {
+      return url;
+    }
+  };
+
+  return (
+    <>
+      {parts.map((part, index) =>
+        urlRegex.test(part) ? (
+          <a
+            key={index}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 mx-1 px-1.5 py-0.5 bg-blue-50 border border-blue-200 rounded text-blue-700 hover:bg-blue-100 transition-colors text-xs"
+            title={part}
+          >
+            <svg
+              className="w-2.5 h-2.5"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z"
+                clipRule="evenodd"
+              />
+            </svg>
+            {getDomainFromUrl(part)}
+          </a>
+        ) : (
+          <span key={index}>{part}</span>
+        )
+      )}
+    </>
+  );
+};
+
+// Category badge component
+const CategoryBadge = ({ category }: { category: MarketCategory }) => {
+  const categoryNames = {
+    [MarketCategory.POLITICS]: "Politics",
+    [MarketCategory.SPORTS]: "Sports",
+    [MarketCategory.ENTERTAINMENT]: "Entertainment",
+    [MarketCategory.TECHNOLOGY]: "Technology",
+    [MarketCategory.ECONOMICS]: "Economics",
+    [MarketCategory.SCIENCE]: "Science",
+    [MarketCategory.WEATHER]: "Weather",
+    [MarketCategory.OTHER]: "Other",
+  };
+
+  const categoryColors = {
+    [MarketCategory.POLITICS]: "bg-red-100 text-red-700",
+    [MarketCategory.SPORTS]: "bg-green-100 text-green-700",
+    [MarketCategory.ENTERTAINMENT]: "bg-purple-100 text-purple-700",
+    [MarketCategory.TECHNOLOGY]: "bg-blue-100 text-blue-700",
+    [MarketCategory.ECONOMICS]: "bg-yellow-100 text-yellow-700",
+    [MarketCategory.SCIENCE]: "bg-teal-100 text-teal-700",
+    [MarketCategory.WEATHER]: "bg-gray-100 text-gray-700",
+    [MarketCategory.OTHER]: "bg-gray-100 text-gray-700",
+  };
+
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+        categoryColors[category] || categoryColors[MarketCategory.OTHER]
+      }`}
+    >
+      {categoryNames[category] || "Other"}
+    </span>
+  );
+};
+
+interface MarketV2CardProps {
+  index: number;
+  market: MarketV2;
+}
+
+export function MarketV2Card({ index, market }: MarketV2CardProps) {
+  const { address } = useAccount();
+  const [commentCount, setCommentCount] = useState<number>(0);
+  const [options, setOptions] = useState<MarketOption[]>([]);
+  const [totalVolume, setTotalVolume] = useState<bigint>(0n);
+
+  // Fetch all options for this market
+  const { data: marketInfo } = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketInfo",
+    args: [BigInt(index)],
+  });
+
+  // Fetch user shares for this market
+  const { data: userShares } = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getUserShares",
+    args: [BigInt(index), address as `0x${string}`],
+    query: { enabled: !!address },
+  });
+
+  // Fetch options data
+  useEffect(() => {
+    const fetchOptions = async () => {
+      if (!marketInfo) return;
+
+      const optionCount = Number(marketInfo[4]); // optionCount from getMarketInfo
+      const optionsData: MarketOption[] = [];
+      let totalVol = 0n;
+
+      for (let i = 0; i < optionCount; i++) {
+        try {
+          const optionData = await fetch(
+            `/api/market-option?marketId=${index}&optionId=${i}`
+          );
+          if (optionData.ok) {
+            const option = await optionData.json();
+            optionsData.push({
+              name: option.name,
+              description: option.description,
+              totalShares: BigInt(option.totalShares),
+              totalVolume: BigInt(option.totalVolume),
+              currentPrice: BigInt(option.currentPrice),
+              isActive: option.isActive,
+            });
+            totalVol += BigInt(option.totalVolume);
+          }
+        } catch (error) {
+          console.error(`Error fetching option ${i}:`, error);
+        }
+      }
+
+      setOptions(optionsData);
+      setTotalVolume(totalVol);
+    };
+
+    fetchOptions();
+  }, [index, marketInfo]);
+
+  // Fetch comment count
+  useEffect(() => {
+    const fetchCommentCount = async () => {
+      try {
+        const response = await fetch(`/api/comments?marketId=${index}`);
+        if (response.ok) {
+          const data = await response.json();
+          setCommentCount(data.total || 0);
+        }
+      } catch (error) {
+        console.error("Error fetching comment count:", error);
+      }
+    };
+
+    fetchCommentCount();
+  }, [index]);
+
+  // Determine market status
+  const isExpired = new Date(Number(market.endTime) * 1000) < new Date();
+  const isResolved = market.resolved;
+
+  // Share handling
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL || "https://buster-mkt.vercel.app";
+  const marketPageUrl = `${appUrl}/market/${index}/details`;
+
+  const handleShare = async () => {
+    try {
+      await sdk.actions.composeCast({
+        text: `Check out this market on Policast: ${market.question}`,
+        embeds: [marketPageUrl],
+      });
+    } catch (error) {
+      console.error("Failed to compose cast:", error);
+    }
+  };
+
+  // Check if user has shares
+  const hasShares =
+    userShares && userShares.some((shares: bigint) => shares > 0n);
+
+  return (
+    <Card key={index} className="flex flex-col">
+      <CardHeader>
+        <div className="flex items-center justify-between mb-2">
+          <MarketTime endTime={market.endTime} />
+          <CategoryBadge category={market.category} />
+        </div>
+        <CardTitle className="text-base leading-relaxed">
+          <LinkifiedText text={market.question} />
+        </CardTitle>
+        {market.description && (
+          <p className="text-sm text-gray-600 mt-1">
+            <LinkifiedText text={market.description} />
+          </p>
+        )}
+      </CardHeader>
+
+      <CardContent className="pb-0">
+        {options.length > 0 && (
+          <MultiOptionProgress
+            options={options}
+            totalVolume={totalVolume}
+            className="mb-4"
+          />
+        )}
+
+        {isExpired ? (
+          isResolved ? (
+            <MarketResolved
+              marketId={index}
+              outcome={market.winningOptionId + 1} // Adjust for legacy component
+              optionA={options[0]?.name || "Option 1"}
+              optionB={options[1]?.name || "Option 2"}
+            />
+          ) : (
+            <MarketPending />
+          )
+        ) : (
+          <MarketV2BuyInterface marketId={index} market={market} />
+        )}
+      </CardContent>
+
+      <CardFooter className="flex justify-between items-center pt-4">
+        {hasShares ? (
+          <MarketV2SharesDisplay
+            market={market}
+            userShares={userShares || []}
+            options={options}
+          />
+        ) : (
+          <div />
+        )}
+
+        <div className="flex items-center space-x-2">
+          {/* Comment count indicator */}
+          {commentCount > 0 && (
+            <div className="flex items-center text-gray-500 text-xs mr-2">
+              <MessageCircle className="w-3 h-3 mr-1" />
+              <span>{commentCount}</span>
+            </div>
+          )}
+
+          {/* Share button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleShare}
+            className="p-1 h-8 w-8"
+            title="Share market"
+          >
+            <FontAwesomeIcon
+              icon={faShareFromSquare}
+              className="h-3 w-3 text-gray-500"
+            />
+          </Button>
+
+          {/* Details link */}
+          <Link href={`/market/${index}/details`} passHref>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8"
+              title="View details"
+            >
+              <FontAwesomeIcon
+                icon={faUpRightAndDownLeftFromCenter}
+                className="h-3 w-3 text-gray-500"
+              />
+            </Button>
+          </Link>
+        </div>
+      </CardFooter>
+    </Card>
+  );
+}

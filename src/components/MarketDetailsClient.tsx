@@ -9,9 +9,11 @@ import { Footer } from "@/components/footer";
 import { Toaster } from "@/components/ui/toaster";
 import { Clock, Award, Users } from "lucide-react"; //AlertTriangle later for status badge
 import { MarketBuyInterface } from "@/components/market-buy-interface";
+import { MarketV2BuyInterface } from "@/components/market-v2-buy-interface";
 import { MarketResolved } from "@/components/market-resolved";
 import { MarketPending } from "@/components/market-pending";
 import MarketTime from "@/components/market-time";
+import { MarketProgress } from "@/components/market-progress";
 //eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { MarketSharesDisplay } from "@/components/market-shares-display";
 
@@ -19,16 +21,24 @@ import { UrlPreview } from "@/components/url-preview";
 import { MarketContext } from "@/components/market-context";
 import { MarketChart } from "@/components/market-chart";
 import { CommentSystem } from "@/components/CommentSystem";
+import { MarketV2, MarketOption, MarketCategory } from "@/types/types";
 
 interface Market {
   question: string;
-  optionA: string;
-  optionB: string;
+  // V1 Binary options
+  optionA?: string;
+  optionB?: string;
+  totalOptionAShares?: bigint;
+  totalOptionBShares?: bigint;
+  // V2 Multi-options
+  options?: string[];
+  optionShares?: bigint[];
+  category?: string;
+  // Common properties
   endTime: bigint;
   outcome: number;
-  totalOptionAShares: bigint;
-  totalOptionBShares: bigint;
   resolved: boolean;
+  version?: "v1" | "v2";
 }
 
 interface MarketDetailsClientProps {
@@ -73,20 +83,34 @@ export function MarketDetailsClient({
   }, []);
 
   const totalSharesInUnits =
-    market.totalOptionAShares + market.totalOptionBShares;
+    market.version === "v2" && market.optionShares
+      ? market.optionShares.reduce((sum, shares) => sum + shares, 0n)
+      : (market.totalOptionAShares || 0n) + (market.totalOptionBShares || 0n);
+
   const totalSharesDisplay = Number(totalSharesInUnits) / 10 ** TOKEN_DECIMALS;
-  const optionAPercentage =
-    totalSharesInUnits > 0n
-      ? Math.round(
-          (Number(market.totalOptionAShares) / Number(totalSharesInUnits)) * 100
-        )
-      : 50;
-  const optionBPercentage =
-    totalSharesInUnits > 0n
-      ? Math.round(
-          (Number(market.totalOptionBShares) / Number(totalSharesInUnits)) * 100
-        )
-      : 50;
+
+  // Calculate percentages based on market version
+  let optionAPercentage = 50;
+  let optionBPercentage = 50;
+
+  if (market.version === "v1") {
+    optionAPercentage =
+      totalSharesInUnits > 0n
+        ? Math.round(
+            (Number(market.totalOptionAShares || 0n) /
+              Number(totalSharesInUnits)) *
+              100
+          )
+        : 50;
+    optionBPercentage =
+      totalSharesInUnits > 0n
+        ? Math.round(
+            (Number(market.totalOptionBShares || 0n) /
+              Number(totalSharesInUnits)) *
+              100
+          )
+        : 50;
+  }
 
   const now = Date.now();
   const endTimeMs = Number(market.endTime) * 1000;
@@ -176,7 +200,12 @@ export function MarketDetailsClient({
                     Winning Option
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                    {market.outcome === 1 ? market.optionA : market.optionB}
+                    {market.version === "v2" && market.options
+                      ? market.options[market.outcome] ||
+                        `Option ${market.outcome + 1}`
+                      : market.outcome === 1
+                      ? market.optionA
+                      : market.optionB}
                   </div>
                 </div>
               </div>
@@ -193,12 +222,51 @@ export function MarketDetailsClient({
                   outcome={market.outcome}
                   optionA={market.optionA}
                   optionB={market.optionB}
+                  options={market.options}
+                  version={market.version}
                 />
               ) : (
                 <MarketPending />
               )
+            ) : market.version === "v2" ? (
+              <MarketV2BuyInterface
+                marketId={Number(marketId)}
+                market={
+                  {
+                    question: market.question,
+                    description: market.question,
+                    endTime: market.endTime,
+                    optionCount: market.options?.length || 2,
+                    disputed: false,
+                    validated: true,
+                    resolved: market.resolved,
+                    category: MarketCategory.OTHER, // Default category
+                    winningOptionId: market.resolved ? market.outcome : 0,
+                    creator: "0x0000000000000000000000000000000000000000", // Unknown creator
+                    totalLiquidity: totalSharesInUnits,
+                    totalVolume: totalSharesInUnits,
+                    options: (market.options || []).map((option, index) => ({
+                      name: option,
+                      description: option,
+                      totalShares: market.optionShares?.[index] || 0n,
+                      totalVolume: 0n,
+                      currentPrice: 0n, // Will be fetched by the component
+                      isActive: !market.resolved,
+                    })) satisfies MarketOption[],
+                  } satisfies MarketV2
+                }
+              />
             ) : (
-              <MarketBuyInterface marketId={Number(marketId)} market={market} />
+              <MarketBuyInterface
+                marketId={Number(marketId)}
+                market={{
+                  question: market.question,
+                  optionA: market.optionA || "Option A",
+                  optionB: market.optionB || "Option B",
+                  totalOptionAShares: market.totalOptionAShares || 0n,
+                  totalOptionBShares: market.totalOptionBShares || 0n,
+                }}
+              />
             )}
           </div>
 
@@ -206,59 +274,38 @@ export function MarketDetailsClient({
             <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
               Current Market Sentiment
             </h3>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    {market.optionA}
-                  </span>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    {optionAPercentage}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                  <div
-                    className="bg-blue-600 dark:bg-blue-500 h-2.5 rounded-full"
-                    style={{ width: `${optionAPercentage}%` }}
-                  ></div>
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {(
-                    Number(market.totalOptionAShares) /
-                    10 ** TOKEN_DECIMALS
-                  ).toLocaleString()}{" "}
-                  shares
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    {market.optionB}
-                  </span>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    {optionBPercentage}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                  <div
-                    className="bg-purple-600 dark:bg-purple-500 h-2.5 rounded-full"
-                    style={{ width: `${optionBPercentage}%` }}
-                  ></div>
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {(
-                    Number(market.totalOptionBShares) /
-                    10 ** TOKEN_DECIMALS
-                  ).toLocaleString()}{" "}
-                  shares
-                </div>
-              </div>
-            </div>
+            {market.version === "v2" &&
+            market.options &&
+            market.optionShares ? (
+              <MarketProgress
+                options={market.options}
+                optionShares={market.optionShares}
+                version="v2"
+                tokenDecimals={TOKEN_DECIMALS}
+              />
+            ) : (
+              <MarketProgress
+                optionA={market.optionA}
+                optionB={market.optionB}
+                totalOptionAShares={market.totalOptionAShares}
+                totalOptionBShares={market.totalOptionBShares}
+                version="v1"
+                tokenDecimals={TOKEN_DECIMALS}
+              />
+            )}
           </div>
 
           {/* Market Analytics Charts */}
           <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
-            <MarketChart marketId={marketId} market={market} />
+            <MarketChart
+              marketId={marketId}
+              market={{
+                optionA: market.optionA,
+                optionB: market.optionB,
+                options: market.options,
+                version: market.version,
+              }}
+            />
           </div>
 
           {/* Comment System */}
