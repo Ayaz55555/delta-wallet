@@ -11,7 +11,6 @@ import {
   useSendCalls,
   useWaitForCallsStatus,
   useConnectorClient,
-  type BaseError,
 } from "wagmi";
 import {
   V2contractAddress,
@@ -23,7 +22,7 @@ import { encodeFunctionData } from "viem";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
-import { MarketV2, MarketOption } from "@/types/types";
+import { MarketV2 } from "@/types/types";
 
 interface MarketV2BuyInterfaceProps {
   marketId: number;
@@ -64,17 +63,8 @@ export function MarketV2BuyInterface({
 }: MarketV2BuyInterfaceProps) {
   const { address: accountAddress, isConnected, connector } = useAccount();
   const { data: connectorClient } = useConnectorClient();
-  const {
-    data: hash,
-    writeContractAsync,
-    isPending: isWritePending,
-    error: writeError,
-  } = useWriteContract();
-  const {
-    isLoading: isConfirmingTx,
-    isSuccess: isTxConfirmed,
-    error: txError,
-  } = useWaitForTransactionReceipt({
+  const { data: hash, writeContractAsync } = useWriteContract();
+  const { isSuccess: isTxConfirmed } = useWaitForTransactionReceipt({
     hash,
   });
   const { toast } = useToast();
@@ -85,7 +75,6 @@ export function MarketV2BuyInterface({
     connector?.name?.includes("Farcaster");
 
   const [isBuying, setIsBuying] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
   const [containerHeight, setContainerHeight] = useState("auto");
   const contentRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -98,16 +87,10 @@ export function MarketV2BuyInterface({
   const [lastProcessedHash, setLastProcessedHash] = useState<string | null>(
     null
   );
+  const [isVisible, setIsVisible] = useState(false);
 
   // EIP-5792 batch calls
-  const {
-    sendCalls,
-    data: callsData,
-    isSuccess: callsSuccess,
-    isPending: callsPending,
-    isError: callsError,
-    error: callsErrorMsg,
-  } = useSendCalls({
+  const { sendCalls, data: callsData } = useSendCalls({
     mutation: {
       onSuccess: (data) => {
         console.log("=== V2 BATCH TRANSACTION CALLBACK ===");

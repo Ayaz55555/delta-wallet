@@ -106,14 +106,7 @@ export function MarketBuyInterface({
     null
   );
   // const [batchingFailed, setBatchingFailed] = useState(false);
-  const {
-    sendCalls,
-    data: callsData,
-    isSuccess: callsSuccess,
-    isPending: callsPending,
-    isError: callsError,
-    error: callsErrorMsg,
-  } = useSendCalls({
+  const { sendCalls, data: callsData } = useSendCalls({
     mutation: {
       onSuccess: (data) => {
         console.log("=== BATCH TRANSACTION CALLBACK ===");
@@ -183,6 +176,7 @@ export function MarketBuyInterface({
     isSuccess: callsStatusSuccess,
     isError: callsStatusError,
     error: callsStatusErrorMsg,
+    isPending: callsPending,
   } = useWaitForCallsStatus({
     id: callsData?.id as `0x${string}`,
     query: {
