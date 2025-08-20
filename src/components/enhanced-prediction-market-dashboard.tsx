@@ -166,7 +166,7 @@ export function EnhancedPredictionMarketDashboard() {
       <Navbar />
       <div className="flex-grow container mx-auto p-4">
         {/* V2 Analytics Banner */}
-        <Card className="mb-6 border-blue-200 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
+        {/* <Card className="mb-6 border-blue-200 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -192,7 +192,7 @@ export function EnhancedPredictionMarketDashboard() {
               </Link>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
         <Tabs
           value={activeTab}
