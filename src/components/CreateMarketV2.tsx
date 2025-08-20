@@ -1,14 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useAccount,
   useWriteContract,
   useWaitForTransactionReceipt,
+  useReadContract,
 } from "wagmi";
 import { parseEther } from "viem";
 import { useToast } from "@/components/ui/use-toast";
-import { V2contractAddress, V2contractAbi } from "@/constants/contract";
+import {
+  V2contractAddress,
+  V2contractAbi,
+  tokenAddress,
+  tokenAbi,
+} from "@/constants/contract";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,7 +83,7 @@ const MARKET_TYPE_LABELS = {
 };
 
 export function CreateMarketV2() {
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const { hasCreatorAccess } = useUserRoles();
   const { toast } = useToast();
 
@@ -105,6 +111,7 @@ export function CreateMarketV2() {
   const [sponsorPrize, setSponsorPrize] = useState<string>("0.1"); // ETH
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [needsApproval, setNeedsApproval] = useState(false);
 
   const { writeContract, data: hash, error, isPending } = useWriteContract();
 
@@ -112,6 +119,53 @@ export function CreateMarketV2() {
     useWaitForTransactionReceipt({
       hash,
     });
+
+  // Check token allowance
+  const { data: allowanceData } = useReadContract({
+    address: tokenAddress,
+    abi: tokenAbi,
+    functionName: "allowance",
+    args: [
+      address || "0x0000000000000000000000000000000000000000",
+      V2contractAddress,
+    ],
+    query: {
+      enabled: isConnected && !!address,
+    },
+  });
+  const currentAllowance = (allowanceData as bigint | undefined) ?? 0n;
+
+  // Handle approval completion and proceed to market creation
+  useEffect(() => {
+    if (isConfirmed && needsApproval) {
+      // Approval completed, now create the market
+      setNeedsApproval(false);
+
+      const durationInSeconds = Math.floor(parseFloat(duration) * 24 * 60 * 60);
+      const liquidityWei = parseEther(initialLiquidity);
+      const optionNames = options.map((opt) => opt.name);
+      const optionDescriptions = options.map((opt) => opt.description);
+
+      createMarket(
+        durationInSeconds,
+        liquidityWei,
+        optionNames,
+        optionDescriptions
+      ).catch((error) => {
+        console.error("Error creating market after approval:", error);
+        toast({
+          title: "Error",
+          description:
+            "Token approval succeeded, but market creation failed. Please try again.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+      });
+    } else if (isConfirmed && !needsApproval) {
+      // Market creation completed
+      setIsSubmitting(false);
+    }
+  }, [isConfirmed, needsApproval]);
 
   const addOption = () => {
     if (options.length < 10) {
@@ -206,59 +260,34 @@ export function CreateMarketV2() {
       const optionNames = options.map((opt) => opt.name);
       const optionDescriptions = options.map((opt) => opt.description);
 
-      if (marketType === MarketType.FREE_ENTRY) {
+      // Check if we need to approve tokens first
+      if (liquidityWei > currentAllowance) {
+        setNeedsApproval(true);
+
+        // First approve the tokens
         await writeContract({
-          address: V2contractAddress,
-          abi: V2contractAbi,
-          functionName: "createFreeMarket",
-          args: [
-            question,
-            description,
-            optionNames,
-            optionDescriptions,
-            BigInt(durationInSeconds),
-            category,
-            BigInt(maxFreeParticipants),
-            BigInt(freeSharesPerUser),
-            liquidityWei,
-          ],
+          address: tokenAddress,
+          abi: tokenAbi,
+          functionName: "approve",
+          args: [V2contractAddress, liquidityWei],
         });
-      } else if (marketType === MarketType.SPONSORED) {
-        const prizeWei = parseEther(sponsorPrize);
-        await writeContract({
-          address: V2contractAddress,
-          abi: V2contractAbi,
-          functionName: "createSponsoredMarket",
-          args: [
-            question,
-            description,
-            optionNames,
-            optionDescriptions,
-            BigInt(durationInSeconds),
-            category,
-            BigInt(minimumParticipants),
-            sponsorMessage,
-            liquidityWei,
-          ],
-          value: prizeWei,
+
+        toast({
+          title: "Approval Required",
+          description:
+            "Please confirm the token approval transaction first, then the market creation will proceed automatically.",
         });
-      } else {
-        await writeContract({
-          address: V2contractAddress,
-          abi: V2contractAbi,
-          functionName: "createMarket",
-          args: [
-            question,
-            description,
-            optionNames,
-            optionDescriptions,
-            BigInt(durationInSeconds),
-            category,
-            marketType,
-            liquidityWei,
-          ],
-        });
+
+        return; // Exit here, the useEffect will handle the next step
       }
+
+      // If we have sufficient allowance, proceed with market creation
+      await createMarket(
+        durationInSeconds,
+        liquidityWei,
+        optionNames,
+        optionDescriptions
+      );
     } catch (error) {
       console.error("Error creating market:", error);
       toast({
@@ -266,8 +295,70 @@ export function CreateMarketV2() {
         description: "Failed to create market. Please try again.",
         variant: "destructive",
       });
-    } finally {
       setIsSubmitting(false);
+      setNeedsApproval(false);
+    }
+  };
+
+  // Separate function for market creation
+  const createMarket = async (
+    durationInSeconds: number,
+    liquidityWei: bigint,
+    optionNames: string[],
+    optionDescriptions: string[]
+  ) => {
+    if (marketType === MarketType.FREE_ENTRY) {
+      await writeContract({
+        address: V2contractAddress,
+        abi: V2contractAbi,
+        functionName: "createFreeMarket",
+        args: [
+          question,
+          description,
+          optionNames,
+          optionDescriptions,
+          BigInt(durationInSeconds),
+          category,
+          BigInt(maxFreeParticipants),
+          BigInt(freeSharesPerUser),
+          liquidityWei,
+        ],
+      });
+    } else if (marketType === MarketType.SPONSORED) {
+      const prizeWei = parseEther(sponsorPrize);
+      await writeContract({
+        address: V2contractAddress,
+        abi: V2contractAbi,
+        functionName: "createSponsoredMarket",
+        args: [
+          question,
+          description,
+          optionNames,
+          optionDescriptions,
+          BigInt(durationInSeconds),
+          category,
+          BigInt(minimumParticipants),
+          sponsorMessage,
+          liquidityWei,
+        ],
+        value: prizeWei,
+      });
+    } else {
+      await writeContract({
+        address: V2contractAddress,
+        abi: V2contractAbi,
+        functionName: "createMarket",
+        args: [
+          question,
+          description,
+          optionNames,
+          optionDescriptions,
+          BigInt(durationInSeconds),
+          category,
+          marketType,
+          liquidityWei,
+        ],
+      });
     }
   };
 
@@ -287,6 +378,8 @@ export function CreateMarketV2() {
     setMinimumParticipants("50");
     setSponsorMessage("");
     setSponsorPrize("0.1");
+    setIsSubmitting(false);
+    setNeedsApproval(false);
   };
 
   if (!isConnected) {
@@ -652,8 +745,14 @@ export function CreateMarketV2() {
                 {isPending || isConfirming || isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    {isPending
-                      ? "Confirming..."
+                    {needsApproval
+                      ? isPending
+                        ? "Approving Tokens..."
+                        : isConfirming
+                        ? "Approving..."
+                        : "Approving..."
+                      : isPending
+                      ? "Creating Market..."
                       : isConfirming
                       ? "Creating..."
                       : "Processing..."}
@@ -661,7 +760,9 @@ export function CreateMarketV2() {
                 ) : (
                   <>
                     <Plus className="h-4 w-4 mr-2" />
-                    Create Market
+                    {parseEther(initialLiquidity) > currentAllowance
+                      ? "Approve & Create Market"
+                      : "Create Market"}
                   </>
                 )}
               </Button>
