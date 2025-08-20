@@ -142,29 +142,41 @@ export function AdminDashboard() {
 
       {/* Admin Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+        <TabsList className="flex flex-wrap justify-start gap-1 h-auto p-1 md:grid md:grid-cols-4 bg-muted">
           {hasCreatorAccess && (
-            <TabsTrigger value="create" className="flex items-center gap-2">
+            <TabsTrigger
+              value="create"
+              className="flex items-center gap-2 flex-1 min-w-[120px] md:min-w-0"
+            >
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Create</span>
+              <span>Create</span>
             </TabsTrigger>
           )}
           {hasResolverAccess && (
-            <TabsTrigger value="resolve" className="flex items-center gap-2">
+            <TabsTrigger
+              value="resolve"
+              className="flex items-center gap-2 flex-1 min-w-[120px] md:min-w-0"
+            >
               <Gavel className="h-4 w-4" />
-              <span className="hidden sm:inline">Resolve</span>
+              <span>Resolve</span>
             </TabsTrigger>
           )}
           {isAdmin && (
-            <TabsTrigger value="liquidity" className="flex items-center gap-2">
+            <TabsTrigger
+              value="liquidity"
+              className="flex items-center gap-2 flex-1 min-w-[120px] md:min-w-0"
+            >
               <DollarSign className="h-4 w-4" />
-              <span className="hidden sm:inline">Liquidity</span>
+              <span>Liquidity</span>
             </TabsTrigger>
           )}
           {isOwner && (
-            <TabsTrigger value="roles" className="flex items-center gap-2">
+            <TabsTrigger
+              value="roles"
+              className="flex items-center gap-2 flex-1 min-w-[120px] md:min-w-0"
+            >
               <Users className="h-4 w-4" />
-              <span className="hidden sm:inline">Roles</span>
+              <span>Roles</span>
             </TabsTrigger>
           )}
         </TabsList>
