@@ -76,7 +76,7 @@ export function AdminDashboard() {
             Admin Dashboard
           </h1>
           <p className="text-gray-600 dark:text-gray-300">
-            Manage V2 prediction markets and platform settings
+            Manage prediction markets and platform settings
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -132,7 +132,7 @@ export function AdminDashboard() {
                 <p className="text-sm font-medium text-muted-foreground">
                   Platform
                 </p>
-                <p className="text-2xl font-bold">V2</p>
+                <p className="text-2xl font-bold">Policast</p>
               </div>
               <Settings className="h-8 w-8 text-purple-600" />
             </div>
