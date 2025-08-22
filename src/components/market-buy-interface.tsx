@@ -292,12 +292,16 @@ export function MarketBuyInterface({
       if (callsStatusData.status === "success") {
         const receipts = callsStatusData.receipts;
 
+        console.log("=== BATCH SUCCESS ANALYSIS ===");
+        console.log("Number of receipts:", receipts?.length);
+        console.log("All receipts:", receipts);
+
         if (receipts && receipts.length === 2) {
-          // Check both transaction receipts
+          // Standard case: Two receipts (approval + purchase)
           const approvalReceipt = receipts[0];
           const purchaseReceipt = receipts[1];
 
-          console.log("=== TRANSACTION RECEIPTS ===");
+          console.log("=== TRANSACTION RECEIPTS (2) ===");
           console.log("Approval receipt:", approvalReceipt);
           console.log("Purchase receipt:", purchaseReceipt);
           console.log("Approval status:", approvalReceipt?.status);
@@ -321,17 +325,10 @@ export function MarketBuyInterface({
             console.warn("⚠️ Approval successful, but purchase failed");
             console.log("Purchase failure reason:", purchaseReceipt);
 
-            // Extract error from purchase receipt if available
-            const purchaseError =
-              "Purchase transaction failed for unknown reason";
-            if (purchaseReceipt?.logs) {
-              // Try to decode error from logs or events
-              console.log("Purchase receipt logs:", purchaseReceipt.logs);
-            }
-
             toast({
               title: "Purchase Failed",
-              description: `Approval successful, but purchase failed. ${purchaseError}`,
+              description:
+                "Approval successful, but purchase failed. Please complete your purchase manually.",
               variant: "destructive",
             });
             setBuyingStep("batchPartialSuccess");
@@ -345,9 +342,63 @@ export function MarketBuyInterface({
             });
             setIsProcessing(false);
           }
+        } else if (receipts && receipts.length === 1) {
+          // Some wallets might return only 1 receipt even for successful batch
+          const singleReceipt = receipts[0];
+
+          console.log("=== SINGLE RECEIPT SUCCESS CASE ===");
+          console.log("Single receipt:", singleReceipt);
+          console.log("Receipt status:", singleReceipt?.status);
+
+          if (singleReceipt?.status === "success") {
+            // Since batch status is "success" and we have a successful receipt,
+            // assume the entire batch was successful
+            console.log(
+              "✅ Batch success with single receipt - assuming full success"
+            );
+            toast({
+              title: "Purchase Successful!",
+              description: "Your shares have been purchased successfully.",
+            });
+            setBuyingStep("purchaseSuccess");
+            setIsProcessing(false);
+          } else {
+            console.warn("⚠️ Single receipt but not successful");
+            setBuyingStep("batchPartialSuccess");
+            setIsProcessing(false);
+          }
+        } else if (receipts && receipts.length > 2) {
+          // More than 2 receipts - check if all are successful
+          const allSuccessful = receipts.every(
+            (receipt) => receipt?.status === "success"
+          );
+
+          console.log("=== MULTIPLE RECEIPTS SUCCESS CASE ===");
+          console.log(`Found ${receipts.length} receipts`);
+          console.log("All successful:", allSuccessful);
+
+          if (allSuccessful) {
+            console.log("✅ All receipts successful!");
+            toast({
+              title: "Purchase Successful!",
+              description: "Your shares have been purchased successfully.",
+            });
+            setBuyingStep("purchaseSuccess");
+            setIsProcessing(false);
+          } else {
+            console.warn("⚠️ Some receipts failed");
+            setBuyingStep("batchPartialSuccess");
+            setIsProcessing(false);
+          }
         } else {
-          console.warn("⚠️ Unexpected number of receipts:", receipts?.length);
-          setBuyingStep("batchPartialSuccess");
+          // No receipts or empty array - this shouldn't happen for success status
+          console.warn("⚠️ Success status but no receipts");
+          console.log("Assuming success since batch status is 'success'");
+          toast({
+            title: "Purchase Successful!",
+            description: "Your shares have been purchased successfully.",
+          });
+          setBuyingStep("purchaseSuccess");
           setIsProcessing(false);
         }
       } else if (callsStatusData.status === "failure") {
