@@ -11,6 +11,8 @@ import { UserStats } from "./UserStats";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Navbar } from "./navbar";
 import { UnifiedMarketList } from "./unified-market-list";
+import { ValidatedMarketList } from "./ValidatedMarketList";
+import { MarketValidationBanner } from "./ValidationNotice";
 import { BarChart3, TrendingUp, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
@@ -220,8 +222,11 @@ export function EnhancedPredictionMarketDashboard() {
             )}
           </TabsList>
 
+          {/* Market Validation Info Banner */}
+          <MarketValidationBanner />
+
           <TabsContent value="active" className="mt-6">
-            <UnifiedMarketList filter="active" />
+            <ValidatedMarketList filter="active" showOnlyValidated={true} />
           </TabsContent>
 
           <TabsContent value="ended" className="mt-6">
@@ -235,10 +240,16 @@ export function EnhancedPredictionMarketDashboard() {
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="pending" className="mt-4">
-                <UnifiedMarketList filter="pending" />
+                <ValidatedMarketList
+                  filter="pending"
+                  showOnlyValidated={true}
+                />
               </TabsContent>
               <TabsContent value="resolved" className="mt-4">
-                <UnifiedMarketList filter="resolved" />
+                <ValidatedMarketList
+                  filter="resolved"
+                  showOnlyValidated={true}
+                />
               </TabsContent>
             </Tabs>
           </TabsContent>
