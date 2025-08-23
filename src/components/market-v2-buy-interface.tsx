@@ -207,6 +207,14 @@ export function MarketV2BuyInterface({
     query: { enabled: selectedOptionId !== null },
   });
 
+  // Fetch market info for validation
+  const { data: marketInfo } = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketInfo",
+    args: [BigInt(marketId)],
+  });
+
   // Calculate slippage protection (5% slippage tolerance)
   const calculateMaxPrice = useCallback((currentPrice: bigint): bigint => {
     return (currentPrice * 105n) / 100n; // 5% slippage
@@ -246,6 +254,11 @@ export function MarketV2BuyInterface({
       console.log("Option ID:", selectedOptionId);
       console.log("Amount:", amountInUnits.toString());
       console.log("Max Price:", maxPricePerShare.toString());
+      console.log("Option Data:", optionData);
+      console.log("Current Price from option data:", currentPrice.toString());
+      console.log("Market object:", market);
+      console.log("V2 Contract Address:", V2contractAddress);
+      console.log("Account Address:", accountAddress);
 
       await writeContractAsync({
         address: V2contractAddress,
@@ -539,6 +552,7 @@ export function MarketV2BuyInterface({
     console.log("User balance:", userBalance?.toString());
     console.log("User allowance:", userAllowance?.toString());
     console.log("Option data:", optionData);
+    console.log("Market info:", marketInfo);
 
     setIsBuying(true);
     setBuyingStep("amount");
@@ -555,6 +569,7 @@ export function MarketV2BuyInterface({
     userBalance,
     userAllowance,
     optionData,
+    marketInfo,
     toast,
   ]);
 
@@ -578,6 +593,20 @@ export function MarketV2BuyInterface({
           userBalance,
           tokenDecimals
         )} ${tokenSymbol || "tokens"}`
+      );
+      return;
+    }
+
+    // Check if market and option data is available
+    if (!optionData || !marketInfo) {
+      setError("Market or option data not available. Please try again.");
+      return;
+    }
+
+    // Check if option is active (index 5 in the optionData array should be boolean)
+    if (optionData.length > 5 && !optionData[5]) {
+      setError(
+        "Selected option is not active. Please choose a different option."
       );
       return;
     }
