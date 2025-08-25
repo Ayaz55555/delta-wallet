@@ -78,7 +78,7 @@ export function UserStats() {
   const farcasterUser = useFarcasterUser();
   const [stats, setStats] = useState<UserStatsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [tokenSymbol, setTokenSymbol] = useState<string>("BSTR");
+  const [tokenSymbol, setTokenSymbol] = useState<string>("buster");
   const [tokenDecimals, setTokenDecimals] = useState<number>(18);
 
   const { data: bettingTokenAddr } = useReadContract({

@@ -312,7 +312,7 @@ export function V3FinancialManager({
               <div>
                 <p className="text-sm text-gray-500">Total Fees Collected</p>
                 <p className="text-lg font-semibold">
-                  {formatAmount(totalFeesCollected)} BSTR
+                  {formatAmount(totalFeesCollected)} buster
                 </p>
               </div>
               <div>
@@ -381,25 +381,25 @@ export function V3FinancialManager({
             <div>
               <p className="text-sm text-gray-500">Admin Initial Liquidity</p>
               <p className="text-lg font-semibold">
-                {formatAmount(adminInitialLiquidity)} BSTR
+                {formatAmount(adminInitialLiquidity)} buster
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-500">User Liquidity</p>
               <p className="text-lg font-semibold">
-                {formatAmount(userLiquidity)} BSTR
+                {formatAmount(userLiquidity)} buster
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Platform Fees Collected</p>
               <p className="text-lg font-semibold">
-                {formatAmount(platformFeesCollected)} BSTR
+                {formatAmount(platformFeesCollected)} buster
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-500">AMM Fees for LPs</p>
               <p className="text-lg font-semibold">
-                {formatAmount(ammFeesCollected)} BSTR
+                {formatAmount(ammFeesCollected)} buster
               </p>
             </div>
           </div>
@@ -427,7 +427,7 @@ export function V3FinancialManager({
                 <div>
                   <p className="font-medium">Recoverable Amount</p>
                   <p className="text-lg font-bold text-green-600">
-                    {formatAmount(adminInitialLiquidity)} BSTR
+                    {formatAmount(adminInitialLiquidity)} buster
                   </p>
                 </div>
                 <Button
@@ -464,13 +464,13 @@ export function V3FinancialManager({
               <div>
                 <p className="text-sm text-gray-500">Your LP Contribution</p>
                 <p className="text-lg font-semibold">
-                  {formatAmount(lpContribution)} BSTR
+                  {formatAmount(lpContribution)} buster
                 </p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Estimated Rewards</p>
                 <p className="text-lg font-semibold">
-                  {formatAmount(estimatedRewards)} BSTR
+                  {formatAmount(estimatedRewards)} buster
                 </p>
               </div>
             </div>
@@ -516,7 +516,7 @@ export function V3FinancialManager({
               <div>
                 <p className="text-sm text-gray-500">Total Fees Collected</p>
                 <p className="text-lg font-semibold">
-                  {formatAmount(totalFeesCollected)} BSTR
+                  {formatAmount(totalFeesCollected)} buster
                 </p>
               </div>
               <div>
