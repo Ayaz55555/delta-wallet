@@ -232,6 +232,45 @@ export function CreateMarketV2() {
       });
       return false;
     }
+
+    // Additional validation for free markets
+    if (marketType === MarketType.FREE_ENTRY) {
+      if (
+        parseInt(maxFreeParticipants) < 1 ||
+        parseInt(maxFreeParticipants) > 10000
+      ) {
+        toast({
+          title: "Error",
+          description: "Max free participants must be between 1 and 10,000",
+          variant: "destructive",
+        });
+        return false;
+      }
+      if (
+        parseFloat(freeSharesPerUser) < 0.1 ||
+        parseFloat(freeSharesPerUser) > 1000
+      ) {
+        toast({
+          title: "Error",
+          description: "Free tokens per user must be between 0.1 and 1,000",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      // Check if total prize pool is reasonable
+      const totalPrizePool =
+        parseFloat(freeSharesPerUser) * parseInt(maxFreeParticipants);
+      if (totalPrizePool > 1000000) {
+        toast({
+          title: "Error",
+          description: "Total prize pool cannot exceed 1,000,000 tokens",
+          variant: "destructive",
+        });
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -241,6 +280,16 @@ export function CreateMarketV2() {
       toast({
         title: "Error",
         description: "You don't have permission to create markets",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Prevent multiple submissions
+    if (isSubmitting || callsPending || statusLoading) {
+      toast({
+        title: "Error",
+        description: "Please wait for the current transaction to complete",
         variant: "destructive",
       });
       return;
@@ -256,14 +305,25 @@ export function CreateMarketV2() {
 
       const calls = [];
 
+      // Calculate required approval amount based on market type
+      let requiredApproval = liquidityWei;
+
+      if (marketType === MarketType.FREE_ENTRY) {
+        // For free markets, we need to calculate total cost: liquidity + prize pool
+        const tokensPerUser = parseEther(freeSharesPerUser);
+        const maxParticipants = BigInt(maxFreeParticipants);
+        const totalPrizePool = tokensPerUser * maxParticipants;
+        requiredApproval = liquidityWei + totalPrizePool;
+      }
+
       // Add approval if needed
-      if (liquidityWei > currentAllowance) {
+      if (requiredApproval > currentAllowance) {
         calls.push({
           to: tokenAddress,
           data: encodeFunctionData({
             abi: tokenAbi,
             functionName: "approve",
-            args: [V2contractAddress, liquidityWei],
+            args: [V2contractAddress, requiredApproval],
           }),
         });
       }
@@ -273,24 +333,6 @@ export function CreateMarketV2() {
       const value = 0n;
 
       if (marketType === MarketType.FREE_ENTRY) {
-        // For free markets, we need to calculate total cost: liquidity + prize pool
-        const tokensPerUser = parseEther(freeSharesPerUser);
-        const maxParticipants = BigInt(maxFreeParticipants);
-        const totalPrizePool = tokensPerUser * maxParticipants;
-        const totalRequired = liquidityWei + totalPrizePool;
-
-        // Update approval if needed for the total amount
-        if (totalRequired > currentAllowance) {
-          calls[0] = {
-            to: tokenAddress,
-            data: encodeFunctionData({
-              abi: tokenAbi,
-              functionName: "approve",
-              args: [V2contractAddress, totalRequired],
-            }),
-          };
-        }
-
         marketCreationData = encodeFunctionData({
           abi: V2contractAbi,
           functionName: "createFreeMarket",
@@ -301,8 +343,8 @@ export function CreateMarketV2() {
             optionDescriptions,
             BigInt(durationInSeconds),
             category,
-            maxParticipants, // _maxFreeParticipants
-            tokensPerUser, // _tokensPerParticipant
+            BigInt(maxFreeParticipants), // _maxFreeParticipants
+            parseEther(freeSharesPerUser), // _tokensPerParticipant
             liquidityWei, // _initialLiquidity
           ],
         });
@@ -330,6 +372,8 @@ export function CreateMarketV2() {
       });
 
       console.log("Sending batch calls:", calls);
+      console.log("Required approval:", requiredApproval.toString());
+      console.log("Current allowance:", currentAllowance.toString());
 
       await sendCalls({
         calls,
@@ -338,7 +382,7 @@ export function CreateMarketV2() {
       toast({
         title: "Transaction Sent",
         description:
-          liquidityWei > currentAllowance
+          requiredApproval > currentAllowance
             ? "Approving tokens and creating market..."
             : "Creating market...",
       });
@@ -686,9 +730,17 @@ export function CreateMarketV2() {
                 ) : (
                   <>
                     <Plus className="h-4 w-4 mr-2" />
-                    {parseEther(initialLiquidity) > currentAllowance
-                      ? "Approve & Create Market"
-                      : "Create Market"}
+                    {(() => {
+                      const requiredApproval =
+                        marketType === MarketType.FREE_ENTRY
+                          ? parseEther(initialLiquidity) +
+                            parseEther(freeSharesPerUser) *
+                              BigInt(maxFreeParticipants)
+                          : parseEther(initialLiquidity);
+                      return requiredApproval > currentAllowance
+                        ? "Approve & Create Market"
+                        : "Create Market";
+                    })()}
                   </>
                 )}
               </Button>
