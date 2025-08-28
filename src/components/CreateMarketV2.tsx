@@ -702,6 +702,56 @@ export function CreateMarketV2() {
 
           <Separator />
 
+          {/* Cost Summary */}
+          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <h4 className="font-medium mb-2 flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Cost Summary
+            </h4>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span>Initial Liquidity:</span>
+                <span>{initialLiquidity} BUSTER</span>
+              </div>
+              {marketType === MarketType.FREE_ENTRY && (
+                <>
+                  <div className="flex justify-between">
+                    <span>
+                      Prize Pool ({maxFreeParticipants} × {freeSharesPerUser}):
+                    </span>
+                    <span>
+                      {(
+                        parseFloat(freeSharesPerUser) *
+                        parseInt(maxFreeParticipants || "0")
+                      ).toLocaleString()}{" "}
+                      BUSTER
+                    </span>
+                  </div>
+                  <Separator className="my-2" />
+                  <div className="flex justify-between font-medium">
+                    <span>Total Required:</span>
+                    <span>
+                      {(
+                        parseFloat(initialLiquidity) +
+                        parseFloat(freeSharesPerUser) *
+                          parseInt(maxFreeParticipants || "0")
+                      ).toLocaleString()}{" "}
+                      BUSTER
+                    </span>
+                  </div>
+                </>
+              )}
+              {marketType === MarketType.PAID && (
+                <div className="flex justify-between font-medium">
+                  <span>Total Required:</span>
+                  <span>{initialLiquidity} BUSTER</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Submit Button */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-gray-600">
