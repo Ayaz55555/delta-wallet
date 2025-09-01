@@ -133,6 +133,7 @@ export async function fetchV2Market(marketId: number): Promise<MarketV2> {
     optionCount,
     resolved,
     disputed,
+    invalidated,
     winningOptionId,
     creator,
   ] = marketInfo;
@@ -190,7 +191,7 @@ export async function fetchV2Market(marketId: number): Promise<MarketV2> {
     disputed,
     validated: true, // Assume validated if we can fetch it
     winningOptionId: Number(winningOptionId),
-    creator,
+    creator: creator as string,
   };
 }
 
