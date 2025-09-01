@@ -79,9 +79,6 @@ export function MarketV2PositionManager({
   );
   const [showZeroPositions, setShowZeroPositions] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [realTimePrices, setRealTimePrices] = useState<Record<number, bigint>>(
-    {}
-  );
 
   // Token information
   const { data: tokenSymbol } = useReadContract({
@@ -96,7 +93,10 @@ export function MarketV2PositionManager({
     abi: V2contractAbi,
     functionName: "getUserShares",
     args: [BigInt(marketId), accountAddress as `0x${string}`],
-    query: { enabled: !!accountAddress },
+    query: {
+      enabled: !!accountAddress,
+      refetchInterval: 10000, // Refetch every 10 seconds
+    },
   });
 
   // Fetch user portfolio data
@@ -105,90 +105,60 @@ export function MarketV2PositionManager({
     abi: V2contractAbi,
     functionName: "getUserPortfolio",
     args: [accountAddress as `0x${string}`],
-    query: { enabled: !!accountAddress },
+    query: {
+      enabled: !!accountAddress,
+      refetchInterval: 10000, // Refetch every 10 seconds
+    },
   });
 
-  // Fetch current price for each option directly from contract
-  const fetchOptionPrices = async () => {
-    if (!market.options.length) return;
+  // Fetch real-time option data for ALL options to show current prices
+  const optionQueries = market.options.map((_, optionId) => {
+    return useReadContract({
+      address: V2contractAddress,
+      abi: V2contractAbi,
+      functionName: "getMarketOption",
+      args: [BigInt(marketId), BigInt(optionId)],
+      query: {
+        enabled: !!accountAddress, // Fetch for all options, not just ones with shares
+        refetchInterval: 5000, // Refetch every 5 seconds for real-time prices
+      },
+    });
+  });
 
-    const prices: Record<number, bigint> = {};
-
-    for (let optionId = 0; optionId < market.options.length; optionId++) {
-      try {
-        // Use the V3 contract (via V2contractAbi) to get real-time option data
-        const optionData = await publicClient.readContract({
-          address: V2contractAddress,
-          abi: V2contractAbi,
-          functionName: "getMarketOption",
-          args: [BigInt(marketId), BigInt(optionId)],
-        });
-
-        if (optionData && optionData[4]) {
-          // currentPrice is at index 4
-          prices[optionId] = optionData[4] as bigint;
-        } else {
-          // Fallback to market data if contract call fails
-          prices[optionId] = market.options[optionId]?.currentPrice || 0n;
-        }
-      } catch (error) {
-        console.error(`Error fetching price for option ${optionId}:`, error);
-        // Fallback to market data
-        prices[optionId] = market.options[optionId]?.currentPrice || 0n;
-      }
-    }
-
-    setRealTimePrices(prices);
-  };
-
-  useEffect(() => {
-    fetchOptionPrices();
-
-    // Refresh prices every 30 seconds for real-time updates
-    const priceInterval = setInterval(fetchOptionPrices, 30000);
-
-    return () => clearInterval(priceInterval);
-  }, [marketId, market.options]);
-
-  // Convert user shares data to position objects with real cost basis
+  // Convert user shares data to position objects with real-time prices
   const positions: UserPosition[] = market.options.map((option, optionId) => {
     const shares = userShares ? userShares[optionId] || 0n : 0n;
-    // Use real-time price from contract, fallback to market data
-    const currentPrice = realTimePrices[optionId] || option.currentPrice || 0n;
-    const currentValue = (shares * currentPrice) / BigInt(10 ** 18);
 
-    // Use real portfolio data from contract
-    const portfolioTotalInvested = userPortfolio
-      ? userPortfolio.totalInvested
-      : 0n; // totalInvested
-    const portfolioUnrealizedPnL = userPortfolio
-      ? userPortfolio.unrealizedPnL
-      : 0n; // unrealizedPnL
+    // Get real-time price from individual queries
+    const optionData = optionQueries[optionId]?.data;
+    const currentPrice = optionData
+      ? (optionData[4] as bigint)
+      : option.currentPrice || 0n;
 
-    // Calculate share distribution across all markets for this user
-    const userTotalShares = userShares
-      ? userShares.reduce((sum: bigint, s: bigint) => sum + s, 0n)
-      : 0n;
-
-    // Estimate cost basis for this position based on portfolio data
-    let estimatedCostBasis = 0n;
-    let unrealizedPnL = 0n;
-
-    if (shares > 0n && userTotalShares > 0n) {
-      // Calculate the proportion of this position relative to total shares
-      const shareRatio = (shares * 10000n) / userTotalShares;
-
-      // Estimate cost basis as proportion of total invested
-      estimatedCostBasis = (portfolioTotalInvested * shareRatio) / 10000n;
-
-      // Calculate P&L: current value minus estimated cost basis
-      unrealizedPnL = currentValue - estimatedCostBasis;
+    // Debug logging
+    if (optionData) {
+      console.log(`Option ${optionId} data:`, optionData);
+      console.log(`Option ${optionId} current price:`, currentPrice.toString());
     }
 
-    const unrealizedPnLPercent =
-      estimatedCostBasis > 0n
-        ? Number((unrealizedPnL * 10000n) / estimatedCostBasis) / 100
-        : 0;
+    const currentValue =
+      shares > 0n ? (shares * currentPrice) / BigInt(10 ** 18) : 0n;
+
+    // Simplified P&L calculation - use a basic approach for now
+    let unrealizedPnL = 0n;
+    let unrealizedPnLPercent = 0;
+
+    if (shares > 0n && currentPrice > 0n) {
+      // For simplicity, assume average cost basis of 0.5 per share (50 cents)
+      // This is a rough estimate since we don't have exact purchase history
+      const estimatedCostBasis =
+        (shares * BigInt(5 * 10 ** 17)) / BigInt(10 ** 18); // 0.5 per share
+      unrealizedPnL = currentValue - estimatedCostBasis;
+      unrealizedPnLPercent =
+        estimatedCostBasis > 0n
+          ? Number((unrealizedPnL * 10000n) / estimatedCostBasis) / 100
+          : 0;
+    }
 
     return {
       optionId,
@@ -206,11 +176,12 @@ export function MarketV2PositionManager({
     ? positions
     : positions.filter((pos) => pos.shares > 0n);
 
-  // Calculate totals using real portfolio data when available
+  // Calculate totals from individual positions
   const totalValue = positions.reduce((sum, pos) => sum + pos.currentValue, 0n);
-  const totalUnrealizedPnL = userPortfolio
-    ? userPortfolio.unrealizedPnL // Use real unrealized P&L from contract
-    : positions.reduce((sum, pos) => sum + pos.unrealizedPnL, 0n); // Fallback to calculated
+  const totalUnrealizedPnL = positions.reduce(
+    (sum, pos) => sum + pos.unrealizedPnL,
+    0n
+  );
   const hasPositions = positions.some((pos) => pos.shares > 0n);
 
   // Convert shares array to object for interfaces
@@ -222,12 +193,14 @@ export function MarketV2PositionManager({
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // Refresh shares, portfolio data, and prices
-      await Promise.all([
+      // Refresh shares, portfolio data, and option data
+      const refreshPromises = [
         refetchShares(),
         refetchPortfolio(),
-        fetchOptionPrices(), // Refresh real-time prices from contract
-      ]);
+        ...optionQueries.map((query) => query.refetch?.()),
+      ].filter(Boolean);
+
+      await Promise.all(refreshPromises);
 
       if (onPositionUpdate) {
         onPositionUpdate();
@@ -299,7 +272,12 @@ export function MarketV2PositionManager({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>
                   <CardContent className="pt-4">
-                    <div className="text-sm text-gray-600">Total Value</div>
+                    <div className="text-sm text-gray-600 flex items-center gap-2">
+                      Total Value
+                      {optionQueries.some((q) => q.isRefetching) && (
+                        <RefreshCw className="h-3 w-3 animate-spin text-blue-500" />
+                      )}
+                    </div>
                     <div className="text-lg font-semibold">
                       {formatPrice(totalValue)} {tokenSymbol || "TOKENS"}
                     </div>
@@ -308,7 +286,12 @@ export function MarketV2PositionManager({
 
                 <Card>
                   <CardContent className="pt-4">
-                    <div className="text-sm text-gray-600">Unrealized P&L</div>
+                    <div className="text-sm text-gray-600 flex items-center gap-2">
+                      Unrealized P&L
+                      {optionQueries.some((q) => q.isRefetching) && (
+                        <RefreshCw className="h-3 w-3 animate-spin text-blue-500" />
+                      )}
+                    </div>
                     <div
                       className={cn(
                         "text-lg font-semibold",
@@ -360,6 +343,9 @@ export function MarketV2PositionManager({
                           </div>
                           <div className="text-sm text-gray-600">
                             @ {formatPrice(position.currentPrice)} per share
+                            {optionQueries[position.optionId]?.isRefetching && (
+                              <RefreshCw className="inline ml-1 h-3 w-3 animate-spin text-blue-500" />
+                            )}
                           </div>
                         </div>
                       </div>
