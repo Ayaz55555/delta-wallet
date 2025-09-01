@@ -41,6 +41,7 @@ type BuyingStep =
   | "purchaseSuccess";
 
 const MAX_BET = 50000000000000000000000000000000;
+const MAX_SHARES = 1000; // Maximum number of shares a user can buy
 
 // Convert amount to token units (handles custom decimals)
 function toUnits(amount: string, decimals: number): bigint {
@@ -78,10 +79,13 @@ export function MarketV2BuyInterface({
     connector?.name?.includes("Farcaster");
 
   // Check if wallet supports batch transactions (EIP-5792)
+  // Enable for all wallets except those known to have issues
   const supportseBatchTransactions =
-    isFarcasterConnector &&
+    !!connector &&
     !connector?.name?.includes("MetaMask") &&
-    !connector?.id?.includes("metaMask");
+    !connector?.id?.includes("metaMask") &&
+    !connector?.name?.includes("Ledger") &&
+    !connector?.id?.includes("ledger");
 
   const [isBuying, setIsBuying] = useState(false);
   const [containerHeight, setContainerHeight] = useState("auto");
@@ -189,7 +193,10 @@ export function MarketV2BuyInterface({
     abi: tokenAbi,
     functionName: "balanceOf",
     args: [accountAddress as `0x${string}`],
-    query: { enabled: !!accountAddress },
+    query: {
+      enabled: !!accountAddress,
+      refetchInterval: 5000, // Refresh balance every 5 seconds
+    },
   });
 
   const { data: userAllowance } = useReadContract({
@@ -197,19 +204,25 @@ export function MarketV2BuyInterface({
     abi: tokenAbi,
     functionName: "allowance",
     args: [accountAddress as `0x${string}`, V2contractAddress],
-    query: { enabled: !!accountAddress },
+    query: {
+      enabled: !!accountAddress,
+      refetchInterval: 5000, // Refresh allowance every 5 seconds
+    },
   });
 
-  // Fetch current prices for selected option
+  // Fetch current prices for selected option with fresher data
   const { data: optionData, refetch: refetchOptionData } = useReadContract({
     address: V2contractAddress,
     abi: V2contractAbi,
     functionName: "getMarketOption",
     args: [BigInt(marketId), BigInt(selectedOptionId || 0)],
-    query: { enabled: selectedOptionId !== null },
+    query: {
+      enabled: selectedOptionId !== null,
+      refetchInterval: 2000, // Refresh every 2 seconds for fresher price data
+    },
   });
 
-  // Fetch real-time AMM cost estimation for purchase amount
+  // Fetch real-time AMM cost estimation for purchase amount with fresher data
   const { data: estimatedCost, refetch: refetchEstimatedCost } =
     useReadContract({
       address: V2contractAddress,
@@ -226,6 +239,7 @@ export function MarketV2BuyInterface({
           amount !== "" &&
           amount !== null &&
           parseFloat(amount || "0") > 0,
+        refetchInterval: 1500, // Refresh cost estimation every 1.5 seconds
       },
     });
 
@@ -670,6 +684,12 @@ export function MarketV2BuyInterface({
   const handleConfirmPurchase = useCallback(() => {
     if (!amount || parseFloat(amount) <= 0) {
       setError("Please enter a valid amount");
+      return;
+    }
+
+    // Check maximum shares limit
+    if (parseFloat(amount) > MAX_SHARES) {
+      setError(`Maximum ${MAX_SHARES} shares allowed per purchase`);
       return;
     }
 
@@ -1207,16 +1227,38 @@ export function MarketV2BuyInterface({
                   <Input
                     ref={inputRef}
                     type="number"
-                    placeholder={`Amount of shares to buy`}
+                    placeholder={`Amount of shares to buy (max ${MAX_SHARES})`}
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Allow empty string for clearing the input
+                      if (value === "") {
+                        setAmount("");
+                        setError(null);
+                        return;
+                      }
+
+                      const numValue = parseFloat(value);
+                      // Check for maximum shares limit
+                      if (numValue > MAX_SHARES) {
+                        setError(`Maximum ${MAX_SHARES} shares allowed`);
+                        setAmount(value); // Still allow typing to show the error
+                      } else {
+                        setError(null);
+                        setAmount(value);
+                      }
+                    }}
+                    max={MAX_SHARES}
                     className="w-full"
                   />
                   {userBalance && tokenDecimals && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Balance: {formatPrice(userBalance, tokenDecimals)}{" "}
-                      {tokenSymbol}
-                    </p>
+                    <div className="text-xs text-gray-500 mt-1 space-y-1">
+                      <p>
+                        Balance: {formatPrice(userBalance, tokenDecimals)}{" "}
+                        {tokenSymbol}
+                      </p>
+                      <p>Maximum shares per purchase: {MAX_SHARES}</p>
+                    </div>
                   )}
                   {estimatedCost && amount && parseFloat(amount) > 0 && (
                     <div className="text-sm text-gray-600 mt-2 p-2 bg-gray-50 rounded">
@@ -1262,7 +1304,12 @@ export function MarketV2BuyInterface({
                   </Button>
                   <Button
                     onClick={handleConfirmPurchase}
-                    disabled={!amount || parseFloat(amount) <= 0}
+                    disabled={
+                      !amount ||
+                      parseFloat(amount) <= 0 ||
+                      parseFloat(amount) > MAX_SHARES ||
+                      !!error
+                    }
                     className="flex-1"
                   >
                     Confirm
