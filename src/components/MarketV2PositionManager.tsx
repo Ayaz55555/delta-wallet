@@ -111,19 +111,70 @@ export function MarketV2PositionManager({
     },
   });
 
-  // Fetch real-time option data for ALL options to show current prices
-  const optionQueries = market.options.map((_, optionId) => {
-    return useReadContract({
-      address: V2contractAddress,
-      abi: V2contractAbi,
-      functionName: "getMarketOption",
-      args: [BigInt(marketId), BigInt(optionId)],
-      query: {
-        enabled: !!accountAddress, // Fetch for all options, not just ones with shares
-        refetchInterval: 5000, // Refetch every 5 seconds for real-time prices
-      },
-    });
+  // Fetch real-time option data for up to 10 options (should cover most cases)
+  const option0Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketOption",
+    args: [BigInt(marketId), BigInt(0)],
+    query: {
+      enabled: !!accountAddress && market.options.length > 0,
+      refetchInterval: 5000,
+    },
   });
+
+  const option1Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketOption",
+    args: [BigInt(marketId), BigInt(1)],
+    query: {
+      enabled: !!accountAddress && market.options.length > 1,
+      refetchInterval: 5000,
+    },
+  });
+
+  const option2Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketOption",
+    args: [BigInt(marketId), BigInt(2)],
+    query: {
+      enabled: !!accountAddress && market.options.length > 2,
+      refetchInterval: 5000,
+    },
+  });
+
+  const option3Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketOption",
+    args: [BigInt(marketId), BigInt(3)],
+    query: {
+      enabled: !!accountAddress && market.options.length > 3,
+      refetchInterval: 5000,
+    },
+  });
+
+  const option4Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketOption",
+    args: [BigInt(marketId), BigInt(4)],
+    query: {
+      enabled: !!accountAddress && market.options.length > 4,
+      refetchInterval: 5000,
+    },
+  });
+
+  // Array of queries for easy access
+  const optionQueries = [
+    option0Query,
+    option1Query,
+    option2Query,
+    option3Query,
+    option4Query,
+  ];
 
   // Convert user shares data to position objects with real-time prices
   const positions: UserPosition[] = market.options.map((option, optionId) => {
