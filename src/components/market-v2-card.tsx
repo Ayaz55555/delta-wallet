@@ -28,7 +28,7 @@ import {
   faShareFromSquare,
   faUpRightAndDownLeftFromCenter,
 } from "@fortawesome/free-solid-svg-icons";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Gift } from "lucide-react";
 import { MarketV2, MarketOption, MarketCategory } from "@/types/types";
 import { FreeMarketClaimStatus } from "./FreeMarketClaimStatus";
 
@@ -123,7 +123,8 @@ const InvalidatedBadge = () => {
 // Free market badge component
 const FreeMarketBadge = () => {
   return (
-    <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border border-green-200 shadow-sm">
+      <Gift className="h-3 w-3" />
       Free Entry
     </span>
   );

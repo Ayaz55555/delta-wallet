@@ -8,7 +8,16 @@ import { usePathname } from "next/navigation";
 import { useWallet } from "@/components/WagmiProvider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { Home, BarChart3, User, Trophy, Menu, X, Settings } from "lucide-react";
+import {
+  Home,
+  BarChart3,
+  User,
+  Trophy,
+  Menu,
+  X,
+  Settings,
+  Gift,
+} from "lucide-react";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
 export function Navbar() {
@@ -23,6 +32,7 @@ export function Navbar() {
 
   const navigationItems = [
     { name: "Markets", href: "/", icon: Home },
+    { name: "Free Markets", href: "/free-markets", icon: Gift },
     { name: "Analytics", href: "/analytics", icon: BarChart3 },
     { name: "Profile", href: "/profile", icon: User },
   ];
