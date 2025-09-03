@@ -220,7 +220,9 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
   useEffect(() => {
     const fetchCommentCount = async () => {
       try {
-        const response = await fetch(`/api/comments?marketId=${index}`);
+        const response = await fetch(
+          `/api/comments?marketId=${index}&version=v2`
+        );
         if (response.ok) {
           const data = await response.json();
           setCommentCount(data.total || 0);

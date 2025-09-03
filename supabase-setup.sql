@@ -22,6 +22,7 @@ CREATE TABLE comments (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   parent_id UUID REFERENCES comments(id) ON DELETE CASCADE,
   likes_count INTEGER DEFAULT 0,
+  version TEXT DEFAULT 'v1' NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -38,6 +39,7 @@ CREATE TABLE comment_likes (
 CREATE INDEX idx_comments_market_id ON comments(market_id);
 CREATE INDEX idx_comments_parent_id ON comments(parent_id);
 CREATE INDEX idx_comments_created_at ON comments(created_at DESC);
+CREATE INDEX idx_comments_version ON comments(version);
 CREATE INDEX idx_comment_likes_comment_id ON comment_likes(comment_id);
 CREATE INDEX idx_users_address ON users(address);
 

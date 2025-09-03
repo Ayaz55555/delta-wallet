@@ -118,7 +118,9 @@ export function MarketCard({ index, market }: MarketCardProps) {
   useEffect(() => {
     const fetchCommentCount = async () => {
       try {
-        const response = await fetch(`/api/comments?marketId=${index}`);
+        const response = await fetch(
+          `/api/comments?marketId=${index}&version=v1`
+        );
         if (response.ok) {
           const data = await response.json();
           setCommentCount(data.total || 0);

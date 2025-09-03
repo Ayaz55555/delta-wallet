@@ -120,6 +120,7 @@ export const getUser = async (address: string): Promise<User | null> => {
 // Comment operations
 export const getComments = async (
   marketId: string,
+  version: string = "v1",
   userAddress?: string
 ): Promise<Comment[]> => {
   if (!isSupabaseConfigured()) {
@@ -144,6 +145,7 @@ export const getComments = async (
       `
       )
       .eq("market_id", marketId)
+      .eq("version", version)
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -239,6 +241,7 @@ export const createComment = async (commentData: {
   marketId: string;
   content: string;
   userAddress: string;
+  version?: string;
   fid?: string;
   username?: string;
   pfpUrl?: string;
@@ -289,6 +292,7 @@ export const createComment = async (commentData: {
         content: commentData.content,
         user_id: user.id,
         parent_id: commentData.parentId || null,
+        version: commentData.version || "v1",
       })
       .select(
         `
@@ -410,7 +414,8 @@ export const toggleCommentLike = async (
 };
 
 export const getCommentCounts = async (
-  marketIds: string[]
+  marketIds: string[],
+  version: string = "v1"
 ): Promise<Record<string, number>> => {
   if (!isSupabaseConfigured()) {
     console.warn("Supabase not configured, using fallback comment counts");
@@ -427,7 +432,8 @@ export const getCommentCounts = async (
     const { data, error } = await supabase
       .from("comments")
       .select("market_id")
-      .in("market_id", marketIds);
+      .in("market_id", marketIds)
+      .eq("version", version);
 
     if (error) {
       console.error("Error fetching comment counts:", error);

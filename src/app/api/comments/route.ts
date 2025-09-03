@@ -4,6 +4,7 @@ import { getComments, createComment } from "@/lib/supabase-comments";
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const marketId = searchParams.get("marketId");
+  const version = searchParams.get("version") || "v1";
   const userAddress = searchParams.get("userAddress");
 
   if (!marketId) {
@@ -14,7 +15,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const comments = await getComments(marketId, userAddress || undefined);
+    const comments = await getComments(
+      marketId,
+      version,
+      userAddress || undefined
+    );
     return NextResponse.json({
       comments,
       total: comments.length,
@@ -31,18 +36,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { marketId, content, parentId, author } = body;
+    const { marketId, content, userAddress, version = "v1" } = body;
 
-    if (!marketId || !content || !author?.address) {
+    if (!marketId || !content || !userAddress) {
       return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
-
-    if (content.length > 500) {
-      return NextResponse.json(
-        { error: "Comment too long (max 500 characters)" },
+        { error: "Market ID, content, and user address are required" },
         { status: 400 }
       );
     }
@@ -50,27 +48,11 @@ export async function POST(request: NextRequest) {
     const comment = await createComment({
       marketId,
       content,
-      userAddress: author.address,
-      fid: author.fid,
-      username: author.username,
-      pfpUrl: author.pfpUrl,
-      parentId,
+      userAddress,
+      version,
     });
 
-    if (!comment) {
-      return NextResponse.json(
-        { error: "Failed to create comment" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        comment,
-        message: "Comment posted successfully",
-      },
-      { status: 201 }
-    );
+    return NextResponse.json(comment, { status: 201 });
   } catch (error) {
     console.error("Error creating comment:", error);
     return NextResponse.json(

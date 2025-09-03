@@ -29,6 +29,7 @@ interface Comment {
 
 interface CommentSystemProps {
   marketId: string;
+  version?: "v1" | "v2";
   className?: string;
 }
 
@@ -178,7 +179,11 @@ const LinkifiedText = ({ text }: { text: string }) => {
   );
 };
 
-export function CommentSystem({ marketId, className }: CommentSystemProps) {
+export function CommentSystem({
+  marketId,
+  version = "v1",
+  className,
+}: CommentSystemProps) {
   const { address } = useAccount();
   const farcasterUser = useFarcasterUser();
   const { toast } = useToast();
@@ -193,7 +198,7 @@ export function CommentSystem({ marketId, className }: CommentSystemProps) {
   // Fetch comments
   const fetchComments = useCallback(async () => {
     try {
-      const url = `/api/comments?marketId=${marketId}${
+      const url = `/api/comments?marketId=${marketId}&version=${version}${
         address ? `&userAddress=${address}` : ""
       }`;
       const response = await fetch(url);
@@ -206,7 +211,7 @@ export function CommentSystem({ marketId, className }: CommentSystemProps) {
     } finally {
       setLoading(false);
     }
-  }, [marketId, address]);
+  }, [marketId, version, address]);
 
   useEffect(() => {
     fetchComments();
@@ -223,6 +228,7 @@ export function CommentSystem({ marketId, className }: CommentSystemProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           marketId,
+          version,
           content: content.trim(),
           parentId,
           author: {
