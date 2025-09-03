@@ -32,7 +32,7 @@ export function Footer() {
       icon: Trophy,
       label: "Leaderboard",
     },
-    { hrefBase: "/", tabValue: "myvotes", icon: User, label: "Profile" },
+    { hrefBase: "/", tabValue: "Profile", icon: User, label: "Profile" },
   ];
 
   // Add admin item only for authorized users
