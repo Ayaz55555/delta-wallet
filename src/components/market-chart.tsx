@@ -38,16 +38,18 @@ export function MarketChart({ marketId, market }: MarketChartProps) {
 
   if (loading) {
     return (
-      <div className="h-64 flex items-center justify-center">
-        <div className="text-muted-foreground">Loading chart...</div>
+      <div className="h-48 md:h-64 flex items-center justify-center">
+        <div className="text-sm text-muted-foreground">Loading chart...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="h-64 flex items-center justify-center">
-        <div className="text-destructive">Error loading chart data</div>
+      <div className="h-48 md:h-64 flex items-center justify-center">
+        <div className="text-xs md:text-sm text-destructive">
+          Error loading chart data
+        </div>
       </div>
     );
   }
@@ -58,8 +60,10 @@ export function MarketChart({ marketId, market }: MarketChartProps) {
     analyticsData.priceHistory.length === 0
   ) {
     return (
-      <div className="h-64 flex items-center justify-center">
-        <div className="text-muted-foreground">No data available</div>
+      <div className="h-48 md:h-64 flex items-center justify-center">
+        <div className="text-xs md:text-sm text-muted-foreground">
+          No data available
+        </div>
       </div>
     );
   }
@@ -91,17 +95,17 @@ export function MarketChart({ marketId, market }: MarketChartProps) {
 
   return (
     <div className="w-full">
-      <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+      <h3 className="text-base md:text-lg font-semibold mb-3 md:mb-4 text-gray-900 dark:text-gray-100">
         Market Sentiment Over Time
       </h3>
-      <div className="h-64">
+      <div className="h-48 md:h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
             margin={{
-              top: 20,
-              right: 30,
-              left: 20,
+              top: 10,
+              right: 10,
+              left: 10,
               bottom: 5,
             }}
           >
@@ -114,13 +118,17 @@ export function MarketChart({ marketId, market }: MarketChartProps) {
               className="text-xs fill-muted-foreground"
               tickFormatter={(value) => {
                 const date = new Date(value);
-                return date.toLocaleDateString();
+                return window.innerWidth < 768
+                  ? date.toLocaleDateString().slice(0, 5) // Shorter format on mobile
+                  : date.toLocaleDateString();
               }}
+              interval="preserveStartEnd"
             />
             <YAxis
               className="text-xs fill-muted-foreground"
               domain={[0, 100]}
               tickFormatter={(value) => `${value}%`}
+              width={40}
             />
             <Tooltip
               contentStyle={{
@@ -128,14 +136,17 @@ export function MarketChart({ marketId, market }: MarketChartProps) {
                 border: "1px solid hsl(var(--border))",
                 borderRadius: "6px",
                 color: "hsl(var(--foreground))",
+                fontSize: "12px",
               }}
               labelFormatter={(value) => {
                 const date = new Date(value);
-                return date.toLocaleString();
+                return window.innerWidth < 768
+                  ? date.toLocaleDateString()
+                  : date.toLocaleString();
               }}
               formatter={(value, name) => [`${value}%`, name]}
             />
-            <Legend />
+            <Legend wrapperStyle={{ fontSize: "12px" }} iconType="line" />
             {market?.version === "v2" && market?.options ? (
               // V2 Multi-option lines
               market.options.map((option, index) => {

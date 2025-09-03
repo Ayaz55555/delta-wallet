@@ -44,14 +44,16 @@ export function MarketProgress({
 
     if (totalShares === 0n) {
       return (
-        <div className="mb-4">
-          <div className="text-center text-gray-500 text-sm">No bets yet</div>
+        <div className="mb-3 md:mb-4">
+          <div className="text-center text-gray-500 text-xs md:text-sm">
+            No bets yet
+          </div>
         </div>
       );
     }
 
     return (
-      <div className="mb-4">
+      <div className="mb-3 md:mb-4">
         <div className="space-y-2">
           {options.map((option, index) => {
             const shares = optionShares[index] || 0n;
@@ -62,9 +64,9 @@ export function MarketProgress({
 
             return (
               <div key={index} className="space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span className="font-medium">{option}</span>
-                  <span className="text-gray-500">
+                <div className="flex justify-between text-xs md:text-sm">
+                  <span className="font-medium truncate pr-2">{option}</span>
+                  <span className="text-gray-500 text-xs whitespace-nowrap">
                     {formattedShares} ({percentage.toFixed(1)}% •{" "}
                     {odds.toFixed(2)}x)
                   </span>
@@ -103,14 +105,16 @@ export function MarketProgress({
   const noShares = formatTokenAmount(totalOptionBShares || 0n, tokenDecimals);
 
   return (
-    <div className="mb-4">
+    <div className="mb-3 md:mb-4">
       {totalShares === 0n ? (
-        <div className="text-center text-gray-500 text-sm">No bets yet</div>
+        <div className="text-center text-gray-500 text-xs md:text-sm">
+          No bets yet
+        </div>
       ) : (
         <>
           <div className="flex justify-between mb-2">
             <span className="flex items-center gap-1">
-              <span className="font-bold text-sm text-green-600">
+              <span className="font-bold text-xs md:text-sm text-green-600">
                 {optionA || "Option A"}: {yesShares}
               </span>
               <span className="text-xs text-gray-500">
@@ -118,7 +122,7 @@ export function MarketProgress({
               </span>
             </span>
             <span className="flex items-center gap-1">
-              <span className="font-bold text-sm text-red-600">
+              <span className="font-bold text-xs md:text-sm text-red-600">
                 {optionB || "Option B"}: {noShares}
               </span>
               <span className="text-xs text-gray-500">

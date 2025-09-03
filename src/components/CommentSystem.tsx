@@ -68,22 +68,22 @@ const CommentItem = ({
     <div
       className={`${
         level > 0
-          ? "ml-6 border-l-2 border-gray-100 dark:border-gray-700 pl-4"
+          ? "ml-4 md:ml-6 border-l-2 border-gray-100 dark:border-gray-700 pl-3 md:pl-4"
           : ""
       }`}
     >
-      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-3">
+      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 md:p-4 mb-2 md:mb-3">
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+            <div className="w-6 h-6 md:w-8 md:h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+              <span className="text-xs md:text-sm font-medium text-blue-700 dark:text-blue-300">
                 {comment.user?.username?.charAt(0).toUpperCase() ||
                   comment.user?.address?.slice(2, 4).toUpperCase() ||
                   "?"}
               </span>
             </div>
             <div>
-              <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+              <span className="text-xs md:text-sm font-medium text-gray-900 dark:text-gray-100">
                 {comment.user?.username ||
                   (comment.user?.fid
                     ? `FID: ${comment.user.fid}`
@@ -92,18 +92,18 @@ const CommentItem = ({
                         6
                       )}...${comment.user?.address?.slice(-4)}`)}
               </span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+              <span className="text-xs text-gray-500 dark:text-gray-400 ml-1 md:ml-2">
                 {formatTimeAgo(comment.createdAt)}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="text-sm text-gray-700 dark:text-gray-300 mb-3 leading-relaxed">
+        <div className="text-xs md:text-sm text-gray-700 dark:text-gray-300 mb-2 md:mb-3 leading-relaxed">
           <LinkifiedText text={comment.content} />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
           <Button
             variant="ghost"
             size="sm"
@@ -112,7 +112,7 @@ const CommentItem = ({
               hasLiked
                 ? "text-red-600 dark:text-red-400"
                 : "text-gray-500 dark:text-gray-400"
-            } hover:text-red-600 dark:hover:text-red-400`}
+            } hover:text-red-600 dark:hover:text-red-400 px-2 py-1 h-auto`}
           >
             <Heart
               className={`w-3 h-3 mr-1 ${hasLiked ? "fill-current" : ""}`}
@@ -125,7 +125,7 @@ const CommentItem = ({
               variant="ghost"
               size="sm"
               onClick={() => onReply(comment.id)}
-              className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 px-2 py-1 h-auto"
             >
               <Reply className="w-3 h-3 mr-1" />
               Reply
@@ -136,7 +136,7 @@ const CommentItem = ({
 
       {/* Render replies */}
       {comment.replies && comment.replies.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-1 md:space-y-2">
           {comment.replies.map((reply) => (
             <CommentItem
               key={reply.id}
@@ -341,9 +341,9 @@ export function CommentSystem({
   if (loading) {
     return (
       <Card className={className}>
-        <CardContent className="p-6">
+        <CardContent className="p-4 md:p-6">
           <div className="flex items-center justify-center">
-            <Loader2 className="w-6 h-6 animate-spin" />
+            <Loader2 className="w-5 h-5 md:w-6 md:h-6 animate-spin" />
           </div>
         </CardContent>
       </Card>
@@ -352,13 +352,13 @@ export function CommentSystem({
 
   return (
     <Card className={className}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <MessageCircle className="w-5 h-5" />
+      <CardHeader className="pb-3 md:pb-6">
+        <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+          <MessageCircle className="w-4 h-4 md:w-5 md:h-5" />
           Discussion ({comments.length})
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4 md:space-y-6">
         {/* New comment form */}
         {address ? (
           <div className="space-y-3">
@@ -369,40 +369,43 @@ export function CommentSystem({
                 setNewComment(e.target.value)
               }
               maxLength={500}
-              className="min-h-[80px]"
+              className="min-h-[70px] md:min-h-[80px] text-sm"
             />
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-500">
-                {newComment.length}/500 characters
+                {newComment.length}/500
               </span>
               <Button
                 onClick={() => handlePostComment(newComment)}
                 disabled={!newComment.trim() || posting}
                 size="sm"
+                className="text-xs md:text-sm"
               >
                 {posting ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin mr-1 md:mr-2" />
                 ) : (
-                  <Send className="w-4 h-4 mr-2" />
+                  <Send className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
                 )}
                 Post Comment
               </Button>
             </div>
           </div>
         ) : (
-          <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <p className="text-sm text-gray-600 dark:text-gray-300">
+          <div className="text-center p-3 md:p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <p className="text-xs md:text-sm text-gray-600 dark:text-gray-300">
               Connect your wallet to join the discussion
             </p>
           </div>
         )}
 
         {/* Comments list */}
-        <div className="space-y-4">
+        <div className="space-y-3 md:space-y-4">
           {comments.length === 0 ? (
-            <div className="text-center p-8 text-gray-500">
-              <MessageCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No comments yet. Be the first to share your thoughts!</p>
+            <div className="text-center p-6 md:p-8 text-gray-500">
+              <MessageCircle className="w-8 h-8 md:w-12 md:h-12 mx-auto mb-3 md:mb-4 opacity-50" />
+              <p className="text-xs md:text-sm">
+                No comments yet. Be the first to share your thoughts!
+              </p>
             </div>
           ) : (
             comments.map((comment) => (
@@ -416,7 +419,7 @@ export function CommentSystem({
 
                 {/* Reply form */}
                 {replyingTo === comment.id && (
-                  <div className="ml-6 mt-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <div className="ml-4 md:ml-6 mt-3 p-3 md:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                     <Textarea
                       placeholder={`Reply to ${
                         comment.user?.username || "user"
@@ -426,7 +429,7 @@ export function CommentSystem({
                         setReplyContent(e.target.value)
                       }
                       maxLength={500}
-                      className="mb-3"
+                      className="mb-3 text-sm"
                     />
                     <div className="flex items-center gap-2">
                       <Button
@@ -435,11 +438,12 @@ export function CommentSystem({
                         }
                         disabled={!replyContent.trim() || posting}
                         size="sm"
+                        className="text-xs md:text-sm"
                       >
                         {posting ? (
-                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin mr-1 md:mr-2" />
                         ) : (
-                          <Send className="w-4 h-4 mr-2" />
+                          <Send className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
                         )}
                         Reply
                       </Button>
@@ -447,6 +451,7 @@ export function CommentSystem({
                         onClick={() => setReplyingTo(null)}
                         variant="outline"
                         size="sm"
+                        className="text-xs md:text-sm"
                       >
                         Cancel
                       </Button>

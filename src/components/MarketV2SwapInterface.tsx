@@ -281,36 +281,36 @@ export function MarketV2SwapInterface({
       className="transition-all duration-300 ease-in-out overflow-hidden"
       style={{ height: containerHeight }}
     >
-      <div ref={contentRef} className="space-y-4">
+      <div ref={contentRef} className="space-y-3 md:space-y-4">
         {/* Header */}
         <div className="flex items-center gap-2 text-blue-600">
-          <ArrowLeftRight className="h-4 w-4" />
-          <span className="font-medium">Swap Shares</span>
+          <ArrowLeftRight className="h-3 w-3 md:h-4 md:w-4" />
+          <span className="font-medium text-sm md:text-base">Swap Shares</span>
         </div>
 
         {/* Error Display */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-            <p className="text-red-700 text-sm">{error}</p>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-2 md:p-3">
+            <p className="text-red-700 text-xs md:text-sm">{error}</p>
           </div>
         )}
 
         {/* Step 1: Initial */}
         {swapStep === "initial" && (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-600">
+          <div className="space-y-2 md:space-y-3">
+            <p className="text-xs md:text-sm text-gray-600">
               Swap your shares from one option to another without leaving the
               market.
             </p>
 
             {optionsWithShares.length === 0 ? (
-              <div className="text-center py-4 text-gray-500">
+              <div className="text-center py-3 md:py-4 text-gray-500 text-sm">
                 You don&apos;t own any shares in this market to swap.
               </div>
             ) : (
               <Button
                 onClick={() => setSwapStep("selectOptions")}
-                className="w-full"
+                className="w-full text-sm md:text-base h-8 md:h-10"
               >
                 Start Swap
               </Button>
@@ -320,10 +320,10 @@ export function MarketV2SwapInterface({
 
         {/* Step 2: Select Options */}
         {swapStep === "selectOptions" && (
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4">
             {/* From Option Selection */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-xs md:text-sm font-medium text-gray-700">
                 From (Your shares):
               </label>
               <div className="space-y-2">
@@ -332,7 +332,7 @@ export function MarketV2SwapInterface({
                     key={option.id}
                     onClick={() => setFromOptionId(option.id)}
                     className={cn(
-                      "w-full p-3 text-left border rounded-lg transition-colors",
+                      "w-full p-2 md:p-3 text-left border rounded-lg transition-colors",
                       fromOptionId === option.id
                         ? "border-blue-500 bg-blue-50"
                         : "border-gray-200 hover:border-blue-300 hover:bg-blue-50"
@@ -340,14 +340,18 @@ export function MarketV2SwapInterface({
                   >
                     <div className="flex justify-between items-center">
                       <div>
-                        <div className="font-medium">{option.name}</div>
-                        <div className="text-sm text-gray-600">
+                        <div className="font-medium text-sm md:text-base">
+                          {option.name}
+                        </div>
+                        <div className="text-xs md:text-sm text-gray-600">
                           Your shares: {formatShares(option.shares)}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm text-gray-600">Price</div>
-                        <div className="font-medium">
+                        <div className="text-xs md:text-sm text-gray-600">
+                          Price
+                        </div>
+                        <div className="font-medium text-sm md:text-base">
                           {formatPrice(option.currentPrice)}{" "}
                           {tokenSymbol || "TOKENS"}
                         </div>
@@ -361,7 +365,7 @@ export function MarketV2SwapInterface({
             {/* To Option Selection */}
             {fromOptionId !== null && (
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-xs md:text-sm font-medium text-gray-700">
                   To (Target option):
                 </label>
                 <div className="space-y-2">
@@ -370,7 +374,7 @@ export function MarketV2SwapInterface({
                       key={option.id}
                       onClick={() => setToOptionId(option.id)}
                       className={cn(
-                        "w-full p-3 text-left border rounded-lg transition-colors",
+                        "w-full p-2 md:p-3 text-left border rounded-lg transition-colors",
                         toOptionId === option.id
                           ? "border-green-500 bg-green-50"
                           : "border-gray-200 hover:border-green-300 hover:bg-green-50"
@@ -378,11 +382,15 @@ export function MarketV2SwapInterface({
                     >
                       <div className="flex justify-between items-center">
                         <div>
-                          <div className="font-medium">{option.name}</div>
+                          <div className="font-medium text-sm md:text-base">
+                            {option.name}
+                          </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-sm text-gray-600">Price</div>
-                          <div className="font-medium">
+                          <div className="text-xs md:text-sm text-gray-600">
+                            Price
+                          </div>
+                          <div className="font-medium text-sm md:text-base">
                             {formatPrice(option.currentPrice)}{" "}
                             {tokenSymbol || "TOKENS"}
                           </div>
@@ -402,14 +410,14 @@ export function MarketV2SwapInterface({
                   setToOptionId(null);
                 }}
                 variant="outline"
-                className="flex-1"
+                className="flex-1 text-xs md:text-sm h-8 md:h-10"
               >
                 Back
               </Button>
               <Button
                 onClick={() => setSwapStep("amount")}
                 disabled={fromOptionId === null || toOptionId === null}
-                className="flex-1"
+                className="flex-1 text-xs md:text-sm h-8 md:h-10"
               >
                 Continue
               </Button>
@@ -421,13 +429,13 @@ export function MarketV2SwapInterface({
         {swapStep === "amount" &&
           fromOptionId !== null &&
           toOptionId !== null && (
-            <div className="space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="text-sm text-blue-700">
-                  <div className="flex items-center gap-2 mb-2">
+            <div className="space-y-3 md:space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 md:p-3">
+                <div className="text-xs md:text-sm text-blue-700">
+                  <div className="flex items-center gap-2 mb-1 md:mb-2">
                     <span className="font-medium">From:</span>
                     <span>{market.options[fromOptionId].name}</span>
-                    <ArrowLeftRight className="h-3 w-3" />
+                    <ArrowLeftRight className="h-3 w-3 md:h-4 md:w-4" />
                     <span className="font-medium">To:</span>
                     <span>{market.options[toOptionId].name}</span>
                   </div>
@@ -436,7 +444,7 @@ export function MarketV2SwapInterface({
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-xs md:text-sm font-medium text-gray-700">
                   Shares to Swap
                 </label>
                 <div className="relative">
@@ -446,20 +454,20 @@ export function MarketV2SwapInterface({
                     placeholder="0.00"
                     value={swapAmount}
                     onChange={(e) => setSwapAmount(e.target.value)}
-                    className="pr-16"
+                    className="pr-12 md:pr-16 text-sm md:text-base"
                     step="0.01"
                     min="0"
                     max={maxSwapAmount.toString()}
                   />
                   <button
                     onClick={() => setSwapAmount(maxSwapAmount.toString())}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 transition-colors"
+                    className="absolute right-1 md:right-2 top-1/2 -translate-y-1/2 text-xs bg-blue-100 text-blue-700 px-1 md:px-2 py-1 rounded hover:bg-blue-200 transition-colors"
                   >
                     MAX
                   </button>
                 </div>
                 {swapAmount && expectedOutput > 0n && (
-                  <div className="text-sm text-gray-600">
+                  <div className="text-xs md:text-sm text-gray-600">
                     Expected to receive: ~{expectedOutputFormatted.toFixed(4)}{" "}
                     shares
                   </div>
@@ -470,7 +478,7 @@ export function MarketV2SwapInterface({
                 <Button
                   onClick={() => setSwapStep("selectOptions")}
                   variant="outline"
-                  className="flex-1"
+                  className="flex-1 text-xs md:text-sm h-8 md:h-10"
                 >
                   Back
                 </Button>
@@ -481,7 +489,7 @@ export function MarketV2SwapInterface({
                     parseFloat(swapAmount) <= 0 ||
                     parseFloat(swapAmount) > maxSwapAmount
                   }
-                  className="flex-1"
+                  className="flex-1 text-xs md:text-sm h-8 md:h-10"
                 >
                   Review Swap
                 </Button>
@@ -493,10 +501,12 @@ export function MarketV2SwapInterface({
         {swapStep === "confirm" &&
           fromOptionId !== null &&
           toOptionId !== null && (
-            <div className="space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-medium text-blue-800 mb-2">Confirm Swap</h3>
-                <div className="space-y-2 text-sm text-blue-700">
+            <div className="space-y-3 md:space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 md:p-4">
+                <h3 className="font-medium text-blue-800 mb-2 text-sm md:text-base">
+                  Confirm Swap
+                </h3>
+                <div className="space-y-1 md:space-y-2 text-xs md:text-sm text-blue-700">
                   <div className="flex justify-between">
                     <span>From Option:</span>
                     <span className="font-medium">
@@ -532,18 +542,18 @@ export function MarketV2SwapInterface({
                 <Button
                   onClick={() => setSwapStep("amount")}
                   variant="outline"
-                  className="flex-1"
+                  className="flex-1 text-xs md:text-sm h-8 md:h-10"
                 >
                   Back
                 </Button>
                 <Button
                   onClick={handleSwap}
                   disabled={isProcessing}
-                  className="flex-1"
+                  className="flex-1 text-xs md:text-sm h-8 md:h-10"
                 >
                   {isProcessing ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="mr-1 md:mr-2 h-3 w-3 md:h-4 md:w-4 animate-spin" />
                       Swapping...
                     </>
                   ) : (
@@ -556,9 +566,9 @@ export function MarketV2SwapInterface({
 
         {/* Step 5: Processing */}
         {swapStep === "processing" && (
-          <div className="text-center py-4">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-blue-600" />
-            <p className="mt-2 text-sm text-gray-600">
+          <div className="text-center py-3 md:py-4">
+            <Loader2 className="mx-auto h-6 w-6 md:h-8 md:w-8 animate-spin text-blue-600" />
+            <p className="mt-2 text-xs md:text-sm text-gray-600">
               Processing your swap transaction...
             </p>
           </div>
@@ -566,10 +576,10 @@ export function MarketV2SwapInterface({
 
         {/* Step 6: Success */}
         {swapStep === "swapSuccess" && (
-          <div className="text-center py-4">
-            <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-3">
+          <div className="text-center py-3 md:py-4">
+            <div className="mx-auto w-10 h-10 md:w-12 md:h-12 bg-green-100 rounded-full flex items-center justify-center mb-2 md:mb-3">
               <svg
-                className="w-6 h-6 text-green-600"
+                className="w-5 h-5 md:w-6 md:h-6 text-green-600"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -582,10 +592,10 @@ export function MarketV2SwapInterface({
                 />
               </svg>
             </div>
-            <p className="text-green-700 font-medium">
+            <p className="text-green-700 font-medium text-sm md:text-base">
               Swap Completed Successfully!
             </p>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-xs md:text-sm text-gray-600 mt-1">
               Your shares have been swapped.
             </p>
           </div>

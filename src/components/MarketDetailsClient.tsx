@@ -225,50 +225,53 @@ export function MarketDetailsClient({
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
       <Navbar />
-      <main className="flex-grow container mx-auto px-4 pt-4 pb-24 md:p-6">
-        <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 mb-4">
-          <Button asChild variant="outline" size="sm" className="mr-2">
+      <main className="flex-grow container mx-auto px-3 pt-3 pb-20 md:px-4 md:pt-4 md:pb-24">
+        <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 mb-3 md:mb-4">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="mr-2 text-xs md:text-sm"
+          >
             <Link href="/">Home</Link>
           </Button>
           <Link
             href="/"
-            className="hover:text-blue-600 dark:hover:text-blue-400"
+            className="hover:text-blue-600 dark:hover:text-blue-400 text-xs md:text-sm"
           >
             Markets
           </Link>
           <span className="mx-2">/</span>
-          <span className="text-sm text-gray-600 dark:text-gray-400">
+          <span className="text-xs md:text-sm text-gray-600 dark:text-gray-400">
             Market #{marketId}
           </span>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
-            <h1 className="text-lg md:text-xl font-bold text-gray-900 dark:text-gray-100 mb-2 md:mb-0">
-              {/* {market.question} */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 md:p-6 mb-4 md:mb-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-3 md:mb-4">
+            <h1 className="text-base md:text-xl font-bold text-gray-900 dark:text-gray-100 mb-2 md:mb-0">
               <LinkifiedText text={market.question} />
             </h1>
-            {/* {statusBadge} */}
           </div>
 
           {/* Market Context - show if there are URLs in the question */}
-          <MarketContext question={market.question} className="mb-4" />
+          <MarketContext question={market.question} className="mb-3 md:mb-4" />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mt-3 md:mt-4">
             <div className="flex items-center">
-              <Clock className="text-gray-500 dark:text-gray-400 w-5 h-5 mr-2" />
+              <Clock className="text-gray-500 dark:text-gray-400 w-4 h-4 md:w-5 md:h-5 mr-2" />
               <div>
                 <MarketTime endTime={market.endTime} />
               </div>
             </div>
 
             <div className="flex items-center">
-              <Users className="text-gray-500 dark:text-gray-400 w-5 h-5 mr-2" />
+              <Users className="text-gray-500 dark:text-gray-400 w-4 h-4 md:w-5 md:h-5 mr-2" />
               <div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">
                   Reward pool
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">
                   {totalSharesDisplay.toLocaleString()} Buster
                 </div>
               </div>
@@ -276,12 +279,12 @@ export function MarketDetailsClient({
 
             {market.resolved && (
               <div className="flex items-center">
-                <Award className="text-green-600 dark:text-green-400 w-5 h-5 mr-2" />
+                <Award className="text-green-600 dark:text-green-400 w-4 h-4 md:w-5 md:h-5 mr-2" />
                 <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">
                     Winning Option
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">
                     {market.version === "v2" && market.options
                       ? market.options[market.outcome] ||
                         `Option ${market.outcome + 1}`
@@ -295,8 +298,8 @@ export function MarketDetailsClient({
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-          <div className="mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 md:p-6">
+          <div className="mb-4 md:mb-6">
             {isEnded ? (
               market.resolved ? (
                 <MarketResolved
@@ -365,7 +368,7 @@ export function MarketDetailsClient({
 
           {/* V2 Position Manager - only show for V2 markets */}
           {market.version === "v2" && (
-            <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <div className="mt-6 md:mt-8 border-t border-gray-200 dark:border-gray-700 pt-4 md:pt-6">
               <MarketV2PositionManager
                 marketId={Number(marketId)}
                 market={
@@ -409,7 +412,7 @@ export function MarketDetailsClient({
 
           {/* V3 Financial Manager - only show for resolved V2 markets */}
           {market.version === "v2" && market.resolved && (
-            <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <div className="mt-6 md:mt-8 border-t border-gray-200 dark:border-gray-700 pt-4 md:pt-6">
               <V3FinancialManager
                 marketId={Number(marketId)}
                 isCreator={userRoles.isCreator}
@@ -419,8 +422,8 @@ export function MarketDetailsClient({
             </div>
           )}
 
-          <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
-            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+          <div className="mt-6 md:mt-8 border-t border-gray-200 dark:border-gray-700 pt-4 md:pt-6">
+            <h3 className="text-base md:text-lg font-semibold mb-3 md:mb-4 text-gray-900 dark:text-gray-100">
               Current Market Sentiment
             </h3>
             {market.version === "v2" &&
@@ -444,8 +447,8 @@ export function MarketDetailsClient({
             )}
           </div>
 
-          {/* Market Analytics Charts */}
-          <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+          {/* Market Analytics Charts - Hidden on mobile */}
+          <div className="hidden md:block mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
             <MarketChart
               marketId={marketId}
               market={{
@@ -458,7 +461,7 @@ export function MarketDetailsClient({
           </div>
 
           {/* Comment System */}
-          <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+          <div className="mt-6 md:mt-8 border-t border-gray-200 dark:border-gray-700 pt-4 md:pt-6">
             <CommentSystem
               marketId={marketId}
               version={market.version || "v1"}
