@@ -52,8 +52,22 @@ export function MarketResolved({
   // Determine the winning option text
   const getWinningOptionText = () => {
     if (version === "v2" && options) {
-      // V2: outcome is the winning option ID
-      return options[outcome] || `Option ${outcome + 1}`;
+      // V2: outcome may be number, string, or bigint. Coerce safely.
+      let idx: number;
+      try {
+        if (typeof outcome === "bigint") idx = Number(outcome);
+        else idx = Number(outcome as any);
+      } catch (e) {
+        idx = NaN;
+      }
+
+      if (!Number.isFinite(idx) || Number.isNaN(idx)) {
+        // Safe fallback to avoid `Option NaN` in UI
+        return options[0] ?? "Unknown option";
+      }
+
+      const text = options[idx];
+      return text ?? `Option ${idx + 1}`;
     } else if (optionA && optionB) {
       // V1: outcome 1 = optionA, outcome 2 = optionB
       return outcome === 1 ? optionA : optionB;

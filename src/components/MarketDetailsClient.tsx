@@ -302,9 +302,16 @@ export function MarketDetailsClient({
           <div className="mb-4 md:mb-6">
             {isEnded ? (
               market.resolved ? (
+                // Normalize outcome prop: V2 uses 0-based winningOptionId; other areas add +1
                 <MarketResolved
                   marketId={Number(marketId)}
-                  outcome={market.outcome}
+                  outcome={
+                    market.version === "v2"
+                      ? typeof market.winningOptionId !== "undefined"
+                        ? Number(market.winningOptionId) + 1
+                        : Number(market.outcome)
+                      : Number(market.outcome)
+                  }
                   optionA={market.optionA}
                   optionB={market.optionB}
                   options={market.options}
