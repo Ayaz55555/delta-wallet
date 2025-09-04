@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   useAccount,
   useReadContract,
@@ -32,57 +32,48 @@ export function ClaimWinningsSection() {
     hash,
   });
 
-  // Get user's participated markets (this would need to be implemented)
-  // For now, we'll check a few recent markets as an example
+  // Auto-discover markets where user participated
+  const fetchUserMarkets = useCallback(async () => {
+    if (!address) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/auto-discover-user-markets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userAddress: address }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Auto-discovered markets:", data);
+
+        // Set winnings data directly from API response
+        setWinningsData(data.winningsData || []);
+        setUserMarkets(data.participatedMarkets || []);
+      } else {
+        console.error("Failed to auto-discover markets:", response.statusText);
+        // Fallback to empty state
+        setWinningsData([]);
+        setUserMarkets([]);
+      }
+    } catch (error) {
+      console.error("Error auto-discovering markets:", error);
+      // Fallback to empty state
+      setWinningsData([]);
+      setUserMarkets([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [address]);
+
+  // Auto-discover user's participated markets
   useEffect(() => {
     if (isConnected && address) {
-      // In a real implementation, you'd fetch user's participated markets
-      // For demo purposes, let's check markets 0-10
-      const markets = Array.from({ length: 10 }, (_, i) => i);
-      setUserMarkets(markets);
+      // Use auto-discovery instead of hardcoded range
+      fetchUserMarkets();
     }
-  }, [isConnected, address]);
-
-  // Check winnings for each market
-  useEffect(() => {
-    const checkWinnings = async () => {
-      if (!isConnected || !address || userMarkets.length === 0) return;
-
-      setLoading(true);
-      const winnings: UserWinnings[] = [];
-
-      for (const marketId of userMarkets) {
-        try {
-          const result = await fetch("/api/check-user-winnings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ marketId, userAddress: address }),
-          });
-
-          if (result.ok) {
-            const data = await result.json();
-            if (data.hasWinnings && data.amount > 0) {
-              winnings.push({
-                marketId,
-                amount: BigInt(data.amount),
-                hasWinnings: true,
-              });
-            }
-          }
-        } catch (error) {
-          console.error(
-            `Error checking winnings for market ${marketId}:`,
-            error
-          );
-        }
-      }
-
-      setWinningsData(winnings);
-      setLoading(false);
-    };
-
-    checkWinnings();
-  }, [userMarkets, isConnected, address]);
+  }, [isConnected, address, fetchUserMarkets]);
 
   // Handle claiming winnings
   const handleClaimWinnings = async (marketId: number) => {
@@ -105,12 +96,10 @@ export function ClaimWinningsSection() {
   useEffect(() => {
     if (isSuccess) {
       toast.success("Winnings claimed successfully!");
-      // Refresh winnings data
-      setWinningsData((prev) =>
-        prev.filter((w) => w.marketId !== parseInt(hash?.toString() || "0"))
-      );
+      // Refresh the entire winnings data after successful claim
+      fetchUserMarkets();
     }
-  }, [isSuccess, hash]);
+  }, [isSuccess, fetchUserMarkets]);
 
   if (!isConnected) {
     return (
