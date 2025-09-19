@@ -145,6 +145,7 @@ export async function fetchV2Market(marketId: number): Promise<MarketV2> {
   let disputed = false;
   let marketTypeValue: number = 0;
   let invalidated = false;
+  let validated = false;
   let totalVolume: bigint = 0n;
   let winningOptionId: bigint = 0n;
   let creator = "";
@@ -152,17 +153,22 @@ export async function fetchV2Market(marketId: number): Promise<MarketV2> {
 
   if (marketInfoArr.length >= 13) {
     // Newer V2 shape (13+ entries)
+    // Based on V2 contract ABI:
+    // 0: question, 1: description, 2: endTime, 3: category, 4: optionCount,
+    // 5: resolved, 6: winningOptionId, 7: disputed, 8: validated, 9: invalidated,
+    // 10: totalVolume, 11: creator, 12: earlyResolutionAllowed
     question = String(marketInfoArr[0] ?? "");
     description = String(marketInfoArr[1] ?? "");
     endTime = BigInt(marketInfoArr[2] ?? 0n);
     category = Number(marketInfoArr[3] ?? 0) as MarketCategory;
     optionCount = BigInt(marketInfoArr[4] ?? 0n);
     resolved = Boolean(marketInfoArr[5]);
-    disputed = Boolean(marketInfoArr[6]);
-    marketTypeValue = Number(marketInfoArr[7] ?? 0);
-    invalidated = Boolean(marketInfoArr[8]);
-    totalVolume = BigInt(marketInfoArr[9] ?? 0n);
-    winningOptionId = BigInt(marketInfoArr[10] ?? 0n);
+    winningOptionId = BigInt(marketInfoArr[6] ?? 0n);
+    disputed = Boolean(marketInfoArr[7]);
+    // Note: validated is at index 8, invalidated is at index 9
+    validated = Boolean(marketInfoArr[8]);
+    invalidated = Boolean(marketInfoArr[9]);
+    totalVolume = BigInt(marketInfoArr[10] ?? 0n);
     creator = String(marketInfoArr[11] ?? "");
     earlyResolutionAllowed = Boolean(marketInfoArr[12]);
   } else {
@@ -232,7 +238,7 @@ export async function fetchV2Market(marketId: number): Promise<MarketV2> {
     options,
     resolved,
     disputed,
-    validated: true, // Assume validated if we can fetch it
+    validated,
     invalidated,
     earlyResolutionAllowed,
     winningOptionId,
