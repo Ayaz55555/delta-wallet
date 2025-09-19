@@ -6,7 +6,6 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
   useReadContract,
-  useEstimateGas,
 } from "wagmi";
 import { parseEther, encodeFunctionData } from "viem";
 import { useToast } from "@/components/ui/use-toast";
@@ -393,15 +392,6 @@ export function CreateMarketV2() {
       const optionNames = options.map((opt) => opt.name);
       const optionDescriptions = options.map((opt) => opt.description);
 
-      // Calculate required approval amount
-      let requiredApproval = liquidityWei;
-      if (marketType === MarketType.FREE_ENTRY) {
-        const tokensPerUser = parseEther(freeSharesPerUser);
-        const maxParticipants = BigInt(maxFreeParticipants);
-        const totalPrizePool = tokensPerUser * maxParticipants;
-        requiredApproval = liquidityWei + totalPrizePool;
-      }
-
       // Estimate gas for market creation
       const createArgs =
         marketType === MarketType.FREE_ENTRY
@@ -441,8 +431,35 @@ export function CreateMarketV2() {
               account: address,
             };
 
-      const gasEstimate = await useEstimateGas(createArgs);
-      setEstimatedGas(gasEstimate.data || null);
+      // Build calldata and ask the provider to estimate gas (use encodeFunctionData)
+      try {
+        const txData = encodeFunctionData({
+          abi: V2contractAbi,
+          functionName: createArgs.functionName as any,
+          // encodeFunctionData expects a strongly-typed tuple; cast to any here
+          args: createArgs.args as any,
+        });
+
+        if (typeof window !== "undefined" && window.ethereum) {
+          const provider = window.ethereum as any;
+          const estimate: string = await provider.request({
+            method: "eth_estimateGas",
+            params: [
+              {
+                to: V2contractAddress,
+                data: txData,
+                from: address || undefined,
+              },
+            ],
+          });
+          // estimate may be hex string; convert to BigInt
+          setEstimatedGas(BigInt(estimate));
+        }
+      } catch (e) {
+        // If provider estimation fails, surface the error but continue to fetch gasPrice
+        console.warn("Gas estimation via provider failed:", e);
+        setEstimatedGas(null);
+      }
 
       // Also estimate gas price
       if (typeof window !== "undefined" && window.ethereum) {
@@ -454,7 +471,7 @@ export function CreateMarketV2() {
       }
 
       console.log("⛽ Gas estimation completed:", {
-        gasLimit: gasEstimate.data?.toString(),
+        gasLimit: estimatedGas?.toString(),
         gasPrice: gasPrice?.toString(),
       });
     } catch (error) {
@@ -1238,7 +1255,8 @@ export function CreateMarketV2() {
 
             {!estimatedGas && !isEstimatingGas && (
               <div className="text-xs text-gray-500 text-center py-2">
-                Click "Estimate Gas" to see transaction costs before submitting
+                Click &quot;Estimate Gas&quot; to see transaction costs before
+                submitting
               </div>
             )}
           </div>
@@ -1261,6 +1279,7 @@ export function CreateMarketV2() {
                 disabled={
                   isSubmitting ||
                   writePending ||
+                  approvalPending ||
                   (() => {
                     try {
                       const liquidity = parseEther(initialLiquidity || "0");
@@ -1286,6 +1305,7 @@ export function CreateMarketV2() {
               >
                 {isSubmitting ||
                 writePending ||
+                approvalPending ||
                 (transactionPhase === "approving" && approvalLoading) ||
                 (transactionPhase === "creating" && marketLoading) ? (
                   <>
