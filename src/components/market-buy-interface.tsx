@@ -117,8 +117,15 @@ export function MarketBuyInterface({
     mutation: {
       onSuccess: (data) => {
         console.log("=== BATCH TRANSACTION CALLBACK ===");
-        console.log("Batch transaction submitted with id:", data.id);
-        console.log("Batch capabilities:", data.capabilities);
+        if (!data || typeof data !== "object" || !("id" in data)) {
+          console.warn(
+            "Batch transaction response missing .id, response:",
+            data
+          );
+        } else {
+          console.log("Batch transaction submitted with id:", data.id);
+        }
+        console.log("Batch capabilities:", (data as any)?.capabilities);
 
         toast({
           title: "Batch Transaction Submitted",
@@ -184,9 +191,16 @@ export function MarketBuyInterface({
     isError: callsStatusError,
     error: callsStatusErrorMsg,
   } = useWaitForCallsStatus({
-    id: callsData?.id as `0x${string}`,
+    id:
+      callsData && typeof callsData === "object" && "id" in callsData
+        ? (callsData.id as `0x${string}`)
+        : undefined,
     query: {
-      enabled: !!callsData?.id,
+      enabled: !!(
+        callsData &&
+        typeof callsData === "object" &&
+        "id" in callsData
+      ),
       refetchInterval: 1000, // Check every second
     },
   });

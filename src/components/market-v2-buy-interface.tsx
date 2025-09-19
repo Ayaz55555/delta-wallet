@@ -124,7 +124,15 @@ export function MarketV2BuyInterface({
     mutation: {
       onSuccess: (data) => {
         console.log("=== V2 BATCH TRANSACTION CALLBACK ===");
-        console.log("Batch transaction submitted with id:", data.id);
+        // Defensive: some connectors may return an unexpected shape
+        if (!data || typeof data !== "object" || !("id" in data)) {
+          console.warn(
+            "Batch transaction response missing .id, response:",
+            data
+          );
+        } else {
+          console.log("Batch transaction submitted with id:", data.id);
+        }
         toast({
           title: "Batch Transaction Submitted",
           description:
@@ -177,9 +185,17 @@ export function MarketV2BuyInterface({
     isError: callsStatusError,
     error: callsStatusErrorMsg,
   } = useWaitForCallsStatus({
-    id: callsData?.id as `0x${string}`,
+    // Defensive extraction to avoid reading .id of undefined
+    id:
+      callsData && typeof callsData === "object" && "id" in callsData
+        ? (callsData.id as `0x${string}`)
+        : undefined,
     query: {
-      enabled: !!callsData?.id,
+      enabled: !!(
+        callsData &&
+        typeof callsData === "object" &&
+        "id" in callsData
+      ),
       refetchInterval: 1000, // Check every second
     },
   });

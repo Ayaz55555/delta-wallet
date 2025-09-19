@@ -118,6 +118,12 @@ export function CreateMarketV2() {
     isPending: callsPending,
   } = useSendCalls();
 
+  // Defensive extraction of calls id - some connectors/providers may return unexpected shapes
+  const callsId =
+    callsData && typeof callsData === "object" && "id" in callsData
+      ? (callsData.id as `0x${string}`)
+      : undefined;
+
   // Fallback regular transaction hooks
   const {
     writeContract,
@@ -136,9 +142,10 @@ export function CreateMarketV2() {
     error: statusError,
     isLoading: statusLoading,
   } = useWaitForCallsStatus({
-    id: callsData?.id as `0x${string}`,
+    // Use safely extracted id variable to avoid runtime errors if shape is unexpected
+    id: callsId,
     query: {
-      enabled: !!callsData?.id,
+      enabled: !!callsId,
       refetchInterval: 1000, // Check every second
     },
   });
