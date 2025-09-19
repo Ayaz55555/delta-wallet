@@ -6,6 +6,7 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
   useReadContract,
+  useEstimateGas,
 } from "wagmi";
 import { parseEther, encodeFunctionData } from "viem";
 import { useToast } from "@/components/ui/use-toast";
@@ -111,6 +112,11 @@ export function CreateMarketV2() {
   >("idle");
   const [marketCreated, setMarketCreated] = useState(false);
   const [marketCreationParams, setMarketCreationParams] = useState<any>(null);
+
+  // Gas estimation state
+  const [estimatedGas, setEstimatedGas] = useState<bigint | null>(null);
+  const [gasPrice, setGasPrice] = useState<bigint | null>(null);
+  const [isEstimatingGas, setIsEstimatingGas] = useState(false);
 
   // Transaction hooks
   const {
@@ -243,10 +249,26 @@ export function CreateMarketV2() {
       });
       return false;
     }
+    if (question.length > 200) {
+      toast({
+        title: "Error",
+        description: "Question must be 200 characters or less",
+        variant: "destructive",
+      });
+      return false;
+    }
     if (!description.trim()) {
       toast({
         title: "Error",
         description: "Description is required",
+        variant: "destructive",
+      });
+      return false;
+    }
+    if (description.length > 500) {
+      toast({
+        title: "Error",
+        description: "Description must be 500 characters or less",
         variant: "destructive",
       });
       return false;
@@ -263,6 +285,22 @@ export function CreateMarketV2() {
       toast({
         title: "Error",
         description: "All options must have names",
+        variant: "destructive",
+      });
+      return false;
+    }
+    if (options.some((opt) => opt.name.length > 50)) {
+      toast({
+        title: "Error",
+        description: "Option names must be 50 characters or less",
+        variant: "destructive",
+      });
+      return false;
+    }
+    if (options.some((opt) => opt.description.length > 100)) {
+      toast({
+        title: "Error",
+        description: "Option descriptions must be 100 characters or less",
         variant: "destructive",
       });
       return false;
@@ -343,6 +381,93 @@ export function CreateMarketV2() {
 
     console.log("✅ Form validation completed successfully");
     return true;
+  };
+
+  const estimateGasCost = async () => {
+    if (!validateForm()) return;
+
+    setIsEstimatingGas(true);
+    try {
+      const durationInSeconds = Math.floor(parseFloat(duration) * 24 * 60 * 60);
+      const liquidityWei = parseEther(initialLiquidity);
+      const optionNames = options.map((opt) => opt.name);
+      const optionDescriptions = options.map((opt) => opt.description);
+
+      // Calculate required approval amount
+      let requiredApproval = liquidityWei;
+      if (marketType === MarketType.FREE_ENTRY) {
+        const tokensPerUser = parseEther(freeSharesPerUser);
+        const maxParticipants = BigInt(maxFreeParticipants);
+        const totalPrizePool = tokensPerUser * maxParticipants;
+        requiredApproval = liquidityWei + totalPrizePool;
+      }
+
+      // Estimate gas for market creation
+      const createArgs =
+        marketType === MarketType.FREE_ENTRY
+          ? {
+              address: V2contractAddress,
+              abi: V2contractAbi,
+              functionName: "createFreeMarket",
+              args: [
+                question,
+                description,
+                optionNames,
+                optionDescriptions,
+                BigInt(durationInSeconds),
+                category,
+                BigInt(maxFreeParticipants),
+                parseEther(freeSharesPerUser),
+                liquidityWei,
+                earlyResolutionAllowed,
+              ],
+              account: address,
+            }
+          : {
+              address: V2contractAddress,
+              abi: V2contractAbi,
+              functionName: "createMarket",
+              args: [
+                question,
+                description,
+                optionNames,
+                optionDescriptions,
+                BigInt(durationInSeconds),
+                category,
+                marketType,
+                liquidityWei,
+                earlyResolutionAllowed,
+              ],
+              account: address,
+            };
+
+      const gasEstimate = await useEstimateGas(createArgs);
+      setEstimatedGas(gasEstimate.data || null);
+
+      // Also estimate gas price
+      if (typeof window !== "undefined" && window.ethereum) {
+        const provider = window.ethereum as any;
+        const gasPriceEstimate = await provider.request({
+          method: "eth_gasPrice",
+        });
+        setGasPrice(BigInt(gasPriceEstimate));
+      }
+
+      console.log("⛽ Gas estimation completed:", {
+        gasLimit: gasEstimate.data?.toString(),
+        gasPrice: gasPrice?.toString(),
+      });
+    } catch (error) {
+      console.error("❌ Gas estimation failed:", error);
+      toast({
+        title: "Gas Estimation Failed",
+        description:
+          "Could not estimate transaction cost. The transaction may be too large.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEstimatingGas(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -1060,6 +1185,62 @@ export function CreateMarketV2() {
                 </div>
               )}
             </div>
+          </div>
+
+          <Separator />
+
+          {/* Gas Estimation */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-gray-500" />
+                <span className="font-medium">Estimated Gas Cost</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={estimateGasCost}
+                disabled={isEstimatingGas || !validateForm()}
+              >
+                {isEstimatingGas ? (
+                  <>
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    Estimating...
+                  </>
+                ) : (
+                  "Estimate Gas"
+                )}
+              </Button>
+            </div>
+
+            {estimatedGas && gasPrice && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
+                <div className="flex justify-between text-sm">
+                  <span>Gas Limit:</span>
+                  <span>{estimatedGas.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Gas Price:</span>
+                  <span>{(Number(gasPrice) / 1e9).toFixed(2)} Gwei</span>
+                </div>
+                <div className="flex justify-between font-medium text-blue-700 dark:text-blue-300">
+                  <span>Estimated Cost:</span>
+                  <span>
+                    ≈ {(Number(estimatedGas * gasPrice) / 1e18).toFixed(4)} ETH
+                  </span>
+                </div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                  This is an estimate. Actual costs may vary based on network
+                  conditions.
+                </div>
+              </div>
+            )}
+
+            {!estimatedGas && !isEstimatingGas && (
+              <div className="text-xs text-gray-500 text-center py-2">
+                Click "Estimate Gas" to see transaction costs before submitting
+              </div>
+            )}
           </div>
 
           <Separator />
