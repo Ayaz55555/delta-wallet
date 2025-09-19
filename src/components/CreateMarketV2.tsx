@@ -181,6 +181,19 @@ export function CreateMarketV2() {
         (transactionPhase === "creating" && !approvalSuccess))
     ) {
       console.log("🚀 Sending market creation transaction...");
+      // Log the outgoing transaction payload (inputs + encoded calldata)
+      try {
+        console.log("🧾 marketCreationParams:", marketCreationParams);
+        const calldata = encodeFunctionData({
+          abi: V2contractAbi,
+          functionName: marketCreationParams.functionName as any,
+          args: marketCreationParams.args as any,
+        });
+        console.log("🔐 Encoded calldata for writeContract:", calldata);
+      } catch (logErr) {
+        console.warn("Failed to encode calldata for logging:", logErr);
+      }
+
       writeContract({
         address: V2contractAddress,
         abi: V2contractAbi,
@@ -469,6 +482,13 @@ export function CreateMarketV2() {
           args: createArgs.args as any,
         });
 
+        // Log full inputs and calldata for debugging (user-requested)
+        console.log("🔎 createArgs for gas estimation:", {
+          functionName: createArgs.functionName,
+          args: createArgs.args,
+        });
+        console.log("🔐 Encoded calldata:", txData);
+
         if (typeof window !== "undefined" && window.ethereum) {
           const provider = window.ethereum as any;
           const estimate: string = await provider.request({
@@ -487,6 +507,41 @@ export function CreateMarketV2() {
       } catch (e) {
         // If provider estimation fails, surface the error but continue to fetch gasPrice
         console.warn("Gas estimation via provider failed:", e);
+        // If provider returned encoded revert data, log it to help decode the reason
+        try {
+          // Some providers return nested `data` on the error
+          // @ts-expect-error - provider error shape varies by wallet implementation
+          if (e && e.data) console.warn("Provider error data:", e.data);
+        } catch {}
+        // Try an eth_call to capture revert data (if any) for decoding
+        try {
+          if (typeof window !== "undefined" && window.ethereum) {
+            const provider = window.ethereum as any;
+            // Recreate calldata to ensure availability
+            const txDataRetry = encodeFunctionData({
+              abi: V2contractAbi,
+              functionName: createArgs.functionName as any,
+              args: createArgs.args as any,
+            });
+            const callResult = await provider.request({
+              method: "eth_call",
+              params: [
+                {
+                  to: V2contractAddress,
+                  data: txDataRetry,
+                  from: address || undefined,
+                },
+                "latest",
+              ],
+            });
+            console.warn(
+              "eth_call result (may contain revert data):",
+              callResult
+            );
+          }
+        } catch (callErr) {
+          console.warn("eth_call failed to return revert data:", callErr);
+        }
         setEstimatedGas(null);
       }
 
