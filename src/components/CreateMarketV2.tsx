@@ -106,6 +106,11 @@ export function CreateMarketV2() {
   const [earlyResolutionAllowed, setEarlyResolutionAllowed] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [transactionPhase, setTransactionPhase] = useState<
+    "idle" | "approving" | "creating"
+  >("idle");
+  const [marketCreated, setMarketCreated] = useState(false);
+  const [marketCreationParams, setMarketCreationParams] = useState<any>(null);
 
   // Transaction hooks
   const {
@@ -115,30 +120,70 @@ export function CreateMarketV2() {
     isPending: writePending,
   } = useWriteContract();
 
-  const { isLoading: writeLoading, isSuccess: writeSuccess } =
+  const {
+    writeContract: writeApprovalContract,
+    data: approvalData,
+    error: approvalError,
+    isPending: approvalPending,
+  } = useWriteContract();
+
+  // Watch approval transaction
+  const { isLoading: approvalLoading, isSuccess: approvalSuccess } =
+    useWaitForTransactionReceipt({
+      hash: approvalData,
+    });
+
+  // Watch market creation transaction
+  const { isLoading: marketLoading, isSuccess: marketSuccess } =
     useWaitForTransactionReceipt({
       hash: writeData,
     });
 
   // Handle transaction failures
   useEffect(() => {
-    if (writeError) {
-      console.error("❌ Transaction failed:", writeError);
+    if (writeError || approvalError) {
+      console.error("❌ Transaction failed:", writeError || approvalError);
       setIsSubmitting(false);
+      setTransactionPhase("idle");
       toast({
         title: "Transaction Failed",
-        description: `Failed to create market: ${writeError.message}`,
+        description: `Failed to ${
+          transactionPhase === "approving" ? "approve tokens" : "create market"
+        }: ${(writeError || approvalError)?.message}`,
         variant: "destructive",
       });
     }
-  }, [writeError, toast]);
+  }, [writeError, approvalError, toast, transactionPhase]);
 
+  // Handle transaction success
   useEffect(() => {
-    if (writeSuccess) {
-      console.log("🎉 Fallback transaction confirmed successfully!");
+    if (approvalSuccess && transactionPhase === "approving") {
+      console.log("✅ Approval transaction confirmed!");
+      setTransactionPhase("creating");
+    } else if (marketSuccess && transactionPhase === "creating") {
+      console.log("🎉 Market creation transaction confirmed successfully!");
       setIsSubmitting(false);
+      setTransactionPhase("idle");
+      setMarketCreated(true);
     }
-  }, [writeSuccess]);
+  }, [approvalSuccess, marketSuccess, transactionPhase]);
+
+  // Handle market creation after approval
+  useEffect(() => {
+    if (
+      marketCreationParams &&
+      ((approvalSuccess && transactionPhase === "approving") ||
+        (transactionPhase === "creating" && !approvalSuccess))
+    ) {
+      console.log("🚀 Sending market creation transaction...");
+      writeContract({
+        address: V2contractAddress,
+        abi: V2contractAbi,
+        ...marketCreationParams,
+      });
+      setMarketCreationParams(null);
+    }
+  }, [marketCreationParams, approvalSuccess, transactionPhase, writeContract]);
 
   // Check token allowance
   const { data: allowanceData } = useReadContract({
@@ -334,7 +379,12 @@ export function CreateMarketV2() {
     }
 
     // Prevent multiple submissions
-    if (isSubmitting || writePending || writeLoading) {
+    if (
+      isSubmitting ||
+      writePending ||
+      (transactionPhase === "approving" && approvalLoading) ||
+      (transactionPhase === "creating" && marketLoading)
+    ) {
       console.warn(
         "⏳ Transaction already in progress, blocking new submission"
       );
@@ -348,6 +398,8 @@ export function CreateMarketV2() {
 
     console.log("🔄 Setting submission state to true");
     setIsSubmitting(true);
+    setTransactionPhase("idle");
+    setMarketCreated(false);
 
     try {
       console.log("📐 Calculating transaction parameters...");
@@ -495,73 +547,61 @@ export function CreateMarketV2() {
     // Handle approval if needed
     if (requiredApproval > currentAllowance) {
       console.log("🔐 Approval needed, sending approval transaction...");
-      await writeContract({
+      setTransactionPhase("approving");
+      writeApprovalContract({
         address: tokenAddress,
         abi: tokenAbi,
         functionName: "approve",
         args: [V2contractAddress, requiredApproval],
       });
-
       console.log("✅ Approval transaction sent, waiting for confirmation...");
 
-      // Wait for approval to be confirmed before proceeding
-      // Note: In a real implementation, you'd want to wait for the approval receipt
-      // For now, we'll proceed assuming the user will confirm both transactions
       toast({
         title: "Approval Sent",
-        description:
-          "Please confirm the approval transaction, then the market creation will follow.",
+        description: "Waiting for approval confirmation...",
       });
 
-      // For simplicity, we'll wait a bit and then proceed
-      // In production, you'd want to use useWaitForTransactionReceipt properly
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      console.log("🔄 Proceeding with market creation after approval...");
-    }
-
-    console.log("✅ Allowance sufficient, proceeding with market creation");
-
-    if (marketType === MarketType.FREE_ENTRY) {
-      console.log("🎁 Creating free market via fallback...");
-      await writeContract({
-        address: V2contractAddress,
-        abi: V2contractAbi,
-        functionName: "createFreeMarket",
-        args: [
-          question,
-          description,
-          optionNames,
-          optionDescriptions,
-          BigInt(durationInSeconds),
-          category,
-          BigInt(maxFreeParticipants),
-          parseEther(freeSharesPerUser),
-          liquidityWei,
-          earlyResolutionAllowed,
-        ],
-      });
+      // The useEffect will handle the success and transition to creating phase
     } else {
-      console.log("💰 Creating paid market via fallback...");
-      await writeContract({
-        address: V2contractAddress,
-        abi: V2contractAbi,
-        functionName: "createMarket",
-        args: [
-          question,
-          description,
-          optionNames,
-          optionDescriptions,
-          BigInt(durationInSeconds),
-          category,
-          marketType,
-          liquidityWei,
-          earlyResolutionAllowed,
-        ],
-      });
+      console.log("✅ Allowance sufficient, proceeding with market creation");
+      setTransactionPhase("creating");
     }
 
-    console.log("✅ Fallback transaction sent successfully!");
+    const createArgs =
+      marketType === MarketType.FREE_ENTRY
+        ? {
+            functionName: "createFreeMarket",
+            args: [
+              question,
+              description,
+              optionNames,
+              optionDescriptions,
+              BigInt(durationInSeconds),
+              category,
+              BigInt(maxFreeParticipants),
+              parseEther(freeSharesPerUser),
+              liquidityWei,
+              earlyResolutionAllowed,
+            ],
+          }
+        : {
+            functionName: "createMarket",
+            args: [
+              question,
+              description,
+              optionNames,
+              optionDescriptions,
+              BigInt(durationInSeconds),
+              category,
+              marketType,
+              liquidityWei,
+              earlyResolutionAllowed,
+            ],
+          };
+
+    setMarketCreationParams(createArgs);
+
+    console.log("✅ Market creation parameters set successfully!");
     toast({
       title: "Transaction Sent",
       description: "Creating market...",
@@ -582,6 +622,9 @@ export function CreateMarketV2() {
     setMaxFreeParticipants("3");
     setFreeSharesPerUser("100");
     setIsSubmitting(false);
+    setTransactionPhase("idle");
+    setMarketCreated(false);
+    setMarketCreationParams(null);
   };
 
   if (!isConnected) {
@@ -613,7 +656,7 @@ export function CreateMarketV2() {
     );
   }
 
-  if (writeSuccess) {
+  if (marketCreated) {
     return (
       <Card>
         <CardContent className="p-6 text-center">
@@ -1037,7 +1080,6 @@ export function CreateMarketV2() {
                 disabled={
                   isSubmitting ||
                   writePending ||
-                  writeLoading ||
                   (() => {
                     try {
                       const liquidity = parseEther(initialLiquidity || "0");
@@ -1061,7 +1103,10 @@ export function CreateMarketV2() {
                 }
                 className="min-w-[120px]"
               >
-                {isSubmitting || writePending || writeLoading ? (
+                {isSubmitting ||
+                writePending ||
+                (transactionPhase === "approving" && approvalLoading) ||
+                (transactionPhase === "creating" && marketLoading) ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Processing...
