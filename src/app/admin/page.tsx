@@ -1,6 +1,6 @@
 // src/app/admin/page.tsx
 import { Suspense } from "react";
-import { AdminDashboard } from "@/components/AdminDashboard";
+import { ModernAdminDashboard } from "@/components/ModernAdminDashboard";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 
@@ -10,7 +10,7 @@ function AdminPageContent() {
       <Navbar />
 
       <div className="flex-grow container mx-auto p-4 md:p-6 max-w-7xl">
-        <AdminDashboard />
+        <ModernAdminDashboard />
       </div>
 
       <Footer />
