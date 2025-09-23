@@ -2,7 +2,7 @@
 
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   BaseError,
   useAccount,
@@ -58,19 +58,24 @@ function toUnits(amount: string, decimals: number): bigint {
 
 // Helper function to calculate implied probability from price
 function calculateProbability(price: bigint): number {
-  const priceAsNumber = Number(price) / 1e18;
-  return Math.max(0, Math.min(100, priceAsNumber * 100));
+  // NEW: Contract now stores token prices (0-100 range), convert to probability percentage
+  const tokenPrice = Number(price) / 1e18;
+  const probability = tokenPrice; // Token price is already in 0-100 range
+  return Math.max(0, Math.min(100, probability));
 }
 
 // Helper function to calculate implied odds
 function calculateOdds(price: bigint): number {
-  const priceAsNumber = Number(price) / 1e18;
-  if (priceAsNumber <= 0) return 0;
-  return 1 / priceAsNumber;
+  // NEW: Convert token price to probability, then calculate odds
+  const tokenPrice = Number(price) / 1e18;
+  const probability = tokenPrice / 100; // Convert to 0-1 range
+  if (probability <= 0) return 0;
+  return 1 / probability;
 }
 
 // Format price with proper decimals
 function formatPrice(price: bigint, decimals: number = 18): string {
+  // NEW: Price is already in token format, just scale by decimals
   const formatted = Number(price) / Math.pow(10, decimals);
   if (formatted < 0.01) return formatted.toFixed(4);
   if (formatted < 1) return formatted.toFixed(3);
@@ -273,13 +278,21 @@ export function MarketV2BuyInterface({
     },
   });
 
-  // Fetch real-time AMM cost estimation for purchase amount with fresher data
-  // Note: calculateAMMBuyCost function not available in current ABI
-  // Using current price from optionData for estimation
-  const estimatedCost =
-    optionData && amount
-      ? (optionData[4] as bigint) * BigInt(parseFloat(amount || "0"))
-      : 0n;
+  // Fetch real-time cost estimation using the new pricing system
+  // Contract now stores token prices directly, so calculate cost correctly
+  const estimatedCost = useMemo(() => {
+    if (!optionData || !amount || parseFloat(amount) <= 0) return 0n;
+    
+    const tokenPrice = optionData[4] as bigint; // This is now token price (0-100 range)
+    const quantity = BigInt(Math.floor(parseFloat(amount) * Math.pow(10, 18)));
+    
+    // Calculate cost: tokenPrice * quantity / 1e18
+    const rawCost = (tokenPrice * quantity) / BigInt(1e18);
+    
+    // Add platform fee (2%)
+    const fee = (rawCost * 200n) / 10000n; // 2% fee in basis points
+    return rawCost + fee;
+  }, [optionData, amount]);
 
   // Fetch market info for validation
   const { data: marketInfo } = useReadContract({

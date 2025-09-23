@@ -2,7 +2,7 @@
 
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   useAccount,
   useReadContract,
@@ -113,17 +113,22 @@ export function MarketV2SellInterface({
     query: { enabled: selectedOptionId !== null },
   });
 
-  // Fetch real-time AMM revenue estimation for sell amount
-  // Note: calculateAMMSellRevenue function not available in current ABI
-  // Using current price from optionData for estimation
-  const estimatedRevenue =
-    optionData && sellAmount
-      ? ((optionData[4] as bigint) *
-          BigInt(
-            Math.floor(parseFloat(sellAmount || "0") * Math.pow(10, 18))
-          )) /
-        BigInt(10 ** 18)
-      : 0n;
+  // Calculate estimated revenue using the new pricing system
+  const estimatedRevenue = useMemo(() => {
+    if (!optionData || !sellAmount || parseFloat(sellAmount) <= 0) return 0n;
+
+    const tokenPrice = optionData[4] as bigint; // This is now token price (0-100 range)
+    const quantity = BigInt(
+      Math.floor(parseFloat(sellAmount) * Math.pow(10, 18))
+    );
+
+    // Calculate revenue: tokenPrice * quantity / 1e18
+    const rawRefund = (tokenPrice * quantity) / BigInt(1e18);
+
+    // Subtract platform fee (2%)
+    const fee = (rawRefund * 200n) / 10000n; // 2% fee in basis points
+    return rawRefund - fee;
+  }, [optionData, sellAmount]);
 
   // Calculate minimum price with slippage protection (5% slippage tolerance)
   const calculateMinPrice = useCallback((currentPrice: bigint): bigint => {
