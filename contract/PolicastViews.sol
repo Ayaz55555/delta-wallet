@@ -112,7 +112,7 @@ contract PolicastViews {
                     }
                     
                     if (!hasAnyShares) {
-                        return (100 * 1e18) / optionCount; // Equal token prices for all options (sum = 100 tokens)
+                        return 1e18 / optionCount; // Equal probability for all options (sum = 1e18)
                     }
                 }
                 

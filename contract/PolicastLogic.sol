@@ -139,19 +139,17 @@ library PolicastLogic {
         uint256[] memory prices = new uint256[](market.optionCount);
 
         if (denom == 0) {
-            // Fallback to uniform distribution - now in token format (0-100 range)
-            // For equal probability, each option gets 100/optionCount tokens
-            uint256 uniform = (100 * 1e18) / market.optionCount;
+            // Fallback to uniform distribution (1.0 tokens total split equally)
+            uint256 uniform = 1e18 / market.optionCount;
             for (uint256 i = 0; i < market.optionCount; i++) {
                 prices[i] = uniform;
             }
         } else {
-            // Calculate normalized probabilities and convert to token prices (0-100 range)
+            // Calculate normalized probabilities with improved precision
             for (uint256 i = 0; i < market.optionCount; i++) {
                 // Use higher precision intermediate calculation to reduce precision loss
-                uint256 p = (expVals[i] * 1e18) / denom; // This gives probability (0-1 scaled by 1e18)
-                // Convert to token price: probability * 100 (so 0.33 becomes 33 tokens)
-                prices[i] = (p * 100) / 1e18 * 1e18; // Simplified: p * 100
+                uint256 p = (expVals[i] * 1e18) / denom;
+                prices[i] = p;
             }
         }
 
@@ -177,22 +175,21 @@ library PolicastLogic {
     }
 
     /**
-     * @notice Validate that token prices are within acceptable bounds and sum to ~100e18 (now with 100x scaling for token format)
-     * @param prices Array of token prices to validate
+     * @notice Validate that prices are within acceptable bounds and sum to ~1e18 (now without 100x scaling)
+     * @param prices Array of prices to validate
      */
     function _validatePrices(uint256[] memory prices) private pure {
-        uint256 sumTokens = 0;
+        uint256 sumProb = 0;
 
         for (uint256 i = 0; i < prices.length; i++) {
             uint256 p = prices[i];
-            if (p > 100 * 1e18) {  // Individual token prices should not exceed 100 tokens
+            if (p > 1e18) {  // Individual prices should not exceed 100%
                 revert PriceInvariant();
             }
-            sumTokens += p;
+            sumProb += p;
         }
 
-        // Sum should be ~100e18 (100 tokens total across all options)
-        if (sumTokens + PROB_EPS * 100 < 100 * 1e18 || sumTokens > 100 * 1e18 + PROB_EPS * 100) {  
+        if (sumProb + PROB_EPS < 1e18 || sumProb > 1e18 + PROB_EPS) {  // Sum should be ~1e18 (100%)
             revert ProbabilityInvariant();
         }
     }

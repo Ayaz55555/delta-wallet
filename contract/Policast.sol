@@ -400,8 +400,8 @@ contract PolicastMarketV3 is Ownable, ReentrancyGuard, AccessControl, Pausable {
         market.adminInitialLiquidity = _initialLiquidity;
         market.userLiquidity = 0; // No user liquidity yet
 
-        // Initialize options with equal starting prices (100 tokens total, split equally) - createMarket
-        uint256 initialPrice = (100 * 1e18) / _optionNames.length; // Equal token price distribution
+        // Initialize options with equal starting prices (1.0 tokens total, split equally) - createMarket
+        uint256 initialPrice = 1e18 / _optionNames.length; // Equal price distribution
 
         for (uint256 i = 0; i < _optionNames.length; i++) {
             market.options[i] = MarketOption({
@@ -471,8 +471,8 @@ contract PolicastMarketV3 is Ownable, ReentrancyGuard, AccessControl, Pausable {
         market.adminInitialLiquidity = _initialLiquidity;
         market.userLiquidity = 0; // No user liquidity yet
 
-        // Initialize options with equal starting prices (100 tokens total, split equally) - createFreeMarket  
-        uint256 initialPrice = (100 * 1e18) / _optionNames.length; // Equal token price distribution
+        // Initialize options with equal starting prices (1.0 tokens total, split equally) - createFreeMarket  
+        uint256 initialPrice = 1e18 / _optionNames.length; // Equal price distribution
 
         for (uint256 i = 0; i < _optionNames.length; i++) {
             market.options[i] = MarketOption({
