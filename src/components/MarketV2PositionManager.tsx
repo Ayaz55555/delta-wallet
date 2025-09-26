@@ -292,11 +292,6 @@ export function MarketV2PositionManager({
   );
   const hasPositions = positions.some((pos) => pos.shares > 0n);
 
-  // Convert shares array to object for interfaces
-  const userSharesObject = userSharesQueries.map((query) =>
-    query?.data ? (query.data as bigint) : 0n
-  );
-
   // Handle refresh
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -516,7 +511,6 @@ export function MarketV2PositionManager({
               <MarketV2SellInterface
                 marketId={marketId}
                 market={market}
-                userShares={userSharesObject}
                 onSellComplete={handleRefresh}
               />
             </TabsContent>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAccount, useReadContract } from "wagmi";
 import { sdk } from "@farcaster/miniapp-sdk";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -9,8 +10,7 @@ import { Footer } from "@/components/footer";
 import { Toaster } from "@/components/ui/toaster";
 import { Clock, Award, Users } from "lucide-react";
 import { MarketBuyInterface } from "@/components/market-buy-interface";
-import { MarketV2BuyInterface } from "@/components/market-v2-buy-interface";
-import { MarketV2PositionManager } from "@/components/MarketV2PositionManager";
+import { MarketV2TradingInterface } from "@/components/MarketV2TradingInterface";
 import { V3FinancialManager } from "@/components/V3FinancialManager";
 import { MarketResolved } from "@/components/market-resolved";
 import { MarketPending } from "@/components/market-pending";
@@ -25,6 +25,7 @@ import { MarketChart } from "@/components/market-chart";
 import { CommentSystem } from "@/components/CommentSystem";
 import { MarketV2, MarketOption, MarketCategory } from "@/types/types";
 import { useV3UserRoles } from "@/hooks/useV3UserRoles";
+import { V2contractAddress, V2contractAbi } from "@/constants/contract";
 
 interface Market {
   question: string;
@@ -111,6 +112,7 @@ export function MarketDetailsClient({
   marketId,
   market,
 }: MarketDetailsClientProps) {
+  const { address: accountAddress, isConnected } = useAccount();
   const { isCreator, isLP, isFeeCollector, checkCreatorStatus, checkLPStatus } =
     useV3UserRoles();
   const [userRoles, setUserRoles] = useState({
@@ -350,7 +352,7 @@ export function MarketDetailsClient({
                 <MarketPending />
               )
             ) : market.version === "v2" ? (
-              <MarketV2BuyInterface
+              <MarketV2TradingInterface
                 marketId={Number(marketId)}
                 market={
                   {
@@ -391,6 +393,10 @@ export function MarketDetailsClient({
                       market.earlyResolutionAllowed || false,
                   } satisfies MarketV2
                 }
+                onSellComplete={() => {
+                  // Could refresh user shares or show success message
+                  console.log("Sell completed");
+                }}
               />
             ) : (
               <MarketBuyInterface
@@ -405,54 +411,6 @@ export function MarketDetailsClient({
               />
             )}
           </div>
-
-          {/* V2 Position Manager - only show for V2 markets */}
-          {market.version === "v2" && (
-            <div className="mt-6 md:mt-8 border-t border-gray-200 dark:border-gray-700 pt-4 md:pt-6">
-              <MarketV2PositionManager
-                marketId={Number(marketId)}
-                market={
-                  {
-                    question: market.question,
-                    description: market.description || market.question,
-                    endTime: market.endTime,
-                    category: convertToMarketCategory(market.category),
-                    marketType: 0, // PAID market type
-                    optionCount: BigInt(market.options?.length || 2),
-                    options: (market.options || []).map((option, index) => ({
-                      name: option || `Option ${index + 1}`,
-                      description: option || `Option ${index + 1}`,
-                      totalShares: market.optionShares?.[index] || 0n,
-                      totalVolume: 0n,
-                      currentPrice: 0n, // Will be fetched by the component
-                      isActive: !market.resolved,
-                    })) satisfies MarketOption[],
-                    resolved: market.resolved,
-                    disputed: market.disputed || false,
-                    validated: true,
-                    invalidated: false,
-                    winningOptionId: BigInt(
-                      market.resolved ? market.outcome ?? 0 : 0
-                    ),
-                    creator:
-                      market.creator ||
-                      "0x0000000000000000000000000000000000000000",
-                    createdAt: 0n,
-                    adminInitialLiquidity: 0n,
-                    userLiquidity: totalSharesInUnits,
-                    totalVolume: 0n,
-                    platformFeesCollected: 0n,
-                    ammFeesCollected: 0n,
-                    adminLiquidityClaimed: false,
-                    ammLiquidityPool: 0n,
-                    payoutIndex: 0n,
-                    earlyResolutionAllowed:
-                      market.earlyResolutionAllowed || false,
-                  } satisfies MarketV2
-                }
-              />
-            </div>
-          )}
 
           {/* V3 Financial Manager - only show for resolved V2 markets */}
           {market.version === "v2" && market.resolved && (

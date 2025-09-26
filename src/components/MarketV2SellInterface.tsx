@@ -18,6 +18,7 @@ import {
   V2contractAbi,
   tokenAddress,
   tokenAbi,
+  publicClient,
   PolicastViews,
   PolicastViewsAbi,
 } from "@/constants/contract";
@@ -30,7 +31,6 @@ import { MarketV2 } from "@/types/types";
 interface MarketV2SellInterfaceProps {
   marketId: number;
   market: MarketV2;
-  userShares: { [optionId: number]: bigint };
   onSellComplete?: () => void;
 }
 
@@ -80,7 +80,6 @@ function probabilityToTokenPrice(probability: bigint): bigint {
 export function MarketV2SellInterface({
   marketId,
   market,
-  userShares,
   onSellComplete,
 }: MarketV2SellInterfaceProps) {
   const { address: accountAddress, isConnected, connector } = useAccount();
@@ -110,6 +109,9 @@ export function MarketV2SellInterface({
   const [sellAmount, setSellAmount] = useState<string>("");
   const [sellingStep, setSellingStep] = useState<SellingStep>("initial");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [userShares, setUserShares] = useState<{ [optionId: number]: bigint }>(
+    {}
+  );
   const [error, setError] = useState<string | null>(null);
   const [lastProcessedHash, setLastProcessedHash] = useState<string | null>(
     null
@@ -345,6 +347,35 @@ export function MarketV2SellInterface({
       setContainerHeight(`${contentRef.current.scrollHeight}px`);
     }
   }, [sellingStep, selectedOptionId, error]);
+
+  // Fetch user shares for all options
+  useEffect(() => {
+    const fetchUserShares = async () => {
+      if (!accountAddress || !market.options) return;
+
+      try {
+        const sharesPromises = market.options.map((_, optionId) =>
+          publicClient.readContract({
+            address: V2contractAddress,
+            abi: V2contractAbi,
+            functionName: "getMarketOptionUserShares",
+            args: [BigInt(marketId), BigInt(optionId), accountAddress],
+          })
+        );
+
+        const sharesResults = await Promise.all(sharesPromises);
+        const sharesObj: { [optionId: number]: bigint } = {};
+        sharesResults.forEach((shares, optionId) => {
+          sharesObj[optionId] = shares as bigint;
+        });
+        setUserShares(sharesObj);
+      } catch (error) {
+        console.error("Failed to fetch user shares:", error);
+      }
+    };
+
+    fetchUserShares();
+  }, [accountAddress, marketId, market.options]);
 
   const currentPrice =
     tokenPrices && selectedOptionId !== null
