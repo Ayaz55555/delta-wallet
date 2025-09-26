@@ -117,6 +117,14 @@ export function MarketV2BuyInterface({
     args: [BigInt(marketId)],
   });
 
+  // Fetch market validation status from V2 contract
+  const { data: marketExtendedMeta } = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketExtendedMeta",
+    args: [BigInt(marketId)],
+  });
+
   // Get market odds directly from contract
   const { data: marketOdds } = useReadContract({
     address: PolicastViews,
@@ -348,21 +356,21 @@ export function MarketV2BuyInterface({
 
   // Check if market is validated
   const checkMarketValidation = useCallback(() => {
-    if (marketInfo && marketInfo.length > 8) {
-      // Check the validated field directly from market info (index 8 based on debug output)
-      const isValidated = marketInfo[8] as boolean;
+    if (marketExtendedMeta && marketExtendedMeta.length > 2) {
+      // Check the validated field from marketExtendedMeta (index 2)
+      const isValidated = marketExtendedMeta[2] as boolean;
       console.log(
         "Market validation check:",
         isValidated,
-        "Market info:",
-        marketInfo
+        "Market extended meta:",
+        marketExtendedMeta
       );
       setIsValidated(isValidated);
     } else {
-      // If marketInfo is not available yet, keep checking
+      // If marketExtendedMeta is not available yet, keep checking
       setIsValidated(null);
     }
-  }, [marketInfo]);
+  }, [marketExtendedMeta]);
 
   // Handle direct purchase (for cases where approval already exists)
   const handleDirectPurchase = useCallback(async () => {
