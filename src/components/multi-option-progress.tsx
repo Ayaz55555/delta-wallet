@@ -20,10 +20,12 @@ function formatPrice(price: bigint): string {
   return formatted.toFixed(2);
 }
 
-// Helper function to format odds (odds come as multipliers from contract)
-function formatOdds(odds: bigint): string {
-  const oddsNumber = Number(odds) / 1e18;
-  return oddsNumber.toFixed(2);
+// Helper function to format odds coming from contract. We no longer display the raw
+// on-chain odds value directly (some deployments encode an extra *100 factor); instead
+// we derive display odds from the normalized probability for consistent UX.
+// (Kept here in case of future debugging needs.)
+function formatRawOdds(odds: bigint): number {
+  return Number(odds) / 1e18;
 }
 
 // Helper function to calculate probability from odds (probability = 1/odds * 100)
@@ -119,9 +121,12 @@ export function MultiOptionProgress({
           const probability = probabilities[index] || 0;
           const normalizedProbability = probability * normalizationFactor;
           const optionOdds = odds[index] || 0n;
-          const priceFormatted = formatPrice(option.currentPrice);
+          const priceFormatted = formatPrice(option.currentPrice * 100n);
           const volumeFormatted = formatPrice(option.totalVolume);
-          const oddsFormatted = formatOdds(optionOdds);
+          // Derive display odds from normalized probability to avoid inflated raw odds (e.g. 100x instead of 1x)
+          const displayOdds =
+            normalizedProbability > 0 ? 100 / normalizedProbability : 0;
+          const rawOdds = formatRawOdds(optionOdds); // for potential future comparison/debug
 
           return (
             <div
@@ -153,10 +158,7 @@ export function MultiOptionProgress({
                     {normalizedProbability.toFixed(1)}%
                   </span>
                   <span className="text-xs text-gray-500">
-                    {odds.length > 0
-                      ? formatOdds(optionOdds)
-                      : (1 / (probability / 100)).toFixed(2)}
-                    x
+                    {displayOdds.toFixed(2)}x
                   </span>
                 </div>
                 <div className="text-xs text-gray-400">

@@ -33,6 +33,7 @@ import {
 import { MessageCircle, Gift } from "lucide-react";
 import { MarketV2, MarketOption, MarketCategory } from "@/types/types";
 import { FreeMarketClaimStatus } from "./FreeMarketClaimStatus";
+import { FreeTokenClaimButton } from "./FreeTokenClaimButton";
 
 // Add LinkifiedText component for URL preview support//
 const LinkifiedText = ({ text }: { text: string }) => {
@@ -416,6 +417,15 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
       </CardHeader>
 
       <CardContent className="pb-0">
+        {/* Free token claim button (full CTA) shown only for active, non-expired free markets */}
+        {derivedMarketType === 1 &&
+          !isResolved &&
+          !isInvalidated &&
+          !isExpired && (
+            <div className="mb-4">
+              <FreeTokenClaimButton marketId={index} />
+            </div>
+          )}
         {options.length > 0 && (
           <MultiOptionProgress
             marketId={index}

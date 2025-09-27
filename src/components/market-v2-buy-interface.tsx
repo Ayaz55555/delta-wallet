@@ -1363,7 +1363,7 @@ export function MarketV2BuyInterface({
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">
-                          {probability.toFixed(1)}%
+                          {probability.toFixed(1)}buster
                         </p>
                       </div>
                     </div>
