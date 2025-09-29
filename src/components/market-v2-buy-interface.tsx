@@ -1312,8 +1312,8 @@ export function MarketV2BuyInterface({
                   calculateProbabilityFromTokenPrice(tokenPrice);
                 const oddsFormatted =
                   odds.length > 0
-                    ? Number(odds[index] || 0n) / 1e18 / 100
-                    : calculateOddsFromTokenPrice(tokenPrice) / 100;
+                    ? Number(odds[index] || 0n) / 1e18
+                    : calculateOddsFromTokenPrice(tokenPrice);
                 const isSelected = selectedOptionId === index;
 
                 return (
@@ -1347,9 +1347,9 @@ export function MarketV2BuyInterface({
                             ? (Number(odds[index] || 0n) / 1e18 / 100).toFixed(
                                 2
                               )
-                            : (
-                                calculateOddsFromTokenPrice(tokenPrice) / 100
-                              ).toFixed(2)}
+                            : calculateOddsFromTokenPrice(tokenPrice).toFixed(
+                                2
+                              )}
                           x odds
                         </p>
                       </div>

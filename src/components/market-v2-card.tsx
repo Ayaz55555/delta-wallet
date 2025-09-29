@@ -144,7 +144,7 @@ const EventBasedBadge = () => {
           clipRule="evenodd"
         />
       </svg>
-      Event-Based
+      ER
     </span>
   );
 };
