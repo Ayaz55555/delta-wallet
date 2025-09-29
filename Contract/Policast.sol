@@ -11,9 +11,9 @@ import {PolicastLogic} from "./PolicastLogic.sol";
 //check
 contract PolicastMarketV3 is Ownable, ReentrancyGuard, AccessControl, Pausable {
     // ERRORS
-    error InsufficientBalance();
+
     error InvalidMarket();
-    error MarketNotActive();
+
     error InvalidOption();
     error NotAuthorized();
     error MarketAlreadyResolved();
@@ -32,12 +32,12 @@ contract PolicastMarketV3 is Ownable, ReentrancyGuard, AccessControl, Pausable {
     error BadOptionCount();
     error LengthMismatch();
     error MinTokensRequired();
-    error SamePrizeRequired();
+
     error NotFreeMarket();
     error FreeEntryInactive();
     error AlreadyClaimedFree();
     error FreeSlotseFull();
-    error ExceedsFreeAllowance();
+
     error InsufficientPrizePool();
     error AmountMustBePositive();
     error InsufficientShares();
@@ -46,24 +46,20 @@ contract PolicastMarketV3 is Ownable, ReentrancyGuard, AccessControl, Pausable {
     error PriceTooLow();
     error MarketNotEndedYet();
     error InvalidWinningOption();
-    error CannotDisputeIfWon();
+
     error MarketNotReady();
     error InvalidToken();
     error SameToken();
-    error NoFeesToWithdraw();
+
     error AdminLiquidityAlreadyClaimed();
-    error InsufficientParticipants();
+
     error MarketIsInvalidated();
     error MarketAlreadyInvalidated();
-    error BatchDistributionFailed();
-    error EmptyBatchList();
+
     error MarketTooNew(); // NEW: Prevent immediate resolution of event-based markets
-    error InsufficientInitialLiquidity(); // NEW: Not enough liquidity to sustain LMSR worst-case loss
-    error InconsistentCostInvariant(); // NEW: LMSR cost monotonicity violated
-    error InsufficientSolvency(); // NEW: Insufficient backing for worst-case payout
+    // NEW: Insufficient backing for worst-case payout
     error SlippageExceeded(); // NEW: Aggregate slippage bound violated
-    error ProbabilityInvariant(); // NEW: Sum of probabilities outside tolerance
-    error PriceInvariant(); // NEW: Individual price invalid (>1e18 or unexpected zero)
+    // NEW: Individual price invalid (>1e18 or unexpected zero)
     error NoUnlockedFees(); // NEW: No unlocked fees available for withdrawal
     error NoLiquidityToWithdraw(); // NEW: No admin liquidity available for withdrawal
     error InsufficientContractBalance(); // NEW: Contract doesn't have enough tokens for withdrawal
@@ -178,7 +174,6 @@ contract PolicastMarketV3 is Ownable, ReentrancyGuard, AccessControl, Pausable {
     //     // State variables
     IERC20 public bettingToken;
     address public previousBettingToken; // Track previous token for migration
-    uint256 public tokenUpdatedAt; // When token was last updated
     uint256 public marketCount;
     uint256 public globalTradeCount; // NEW: Total trades across all markets
     uint256 public platformFeeRate = 200; // 2% (basis points)
@@ -192,8 +187,6 @@ contract PolicastMarketV3 is Ownable, ReentrancyGuard, AccessControl, Pausable {
     uint256 public totalWithdrawnPlatformFees; // NEW: Total withdrawn so far
     uint256 public constant PAYOUT_PER_SHARE = 100 * 1e18; // NEW: Fixed payout per winning share (Polymarket-style)
     // Invariant tolerances
-    uint256 private constant PROB_EPS = 5e12; // 0.000005 (5 ppm) tolerance on probability sum
-    uint256 private constant COST_EPS = 1e9; // 1e-9 tokens cost tolerance for monotonicity (small slack)
 
     // Bounds for LMSR b parameter to avoid instability
     uint256 public constant MIN_LMSR_B = 1e16; // 0.01 tokens scaled
@@ -236,8 +229,6 @@ contract PolicastMarketV3 is Ownable, ReentrancyGuard, AccessControl, Pausable {
         uint256 tradeCount
     );
     event FreeTokensClaimed(uint256 indexed marketId, address indexed user, uint256 tokens);
-    event BettingTokenUpdated(address indexed oldToken, address indexed newToken, uint256 timestamp);
-    event LiquidityAdded(uint256 indexed marketId, address indexed provider, uint256 amount);
     event MarketValidated(uint256 indexed marketId, address validator);
     event MarketInvalidated(uint256 indexed marketId, address validator, uint256 refundedAmount);
     event TradeExecuted(
@@ -248,19 +239,13 @@ contract PolicastMarketV3 is Ownable, ReentrancyGuard, AccessControl, Pausable {
         uint256 price,
         uint256 quantity
     );
-    event SharesSold(
-        uint256 indexed marketId, uint256 indexed optionId, address indexed seller, uint256 quantity, uint256 price
-    );
     event MarketResolved(uint256 indexed marketId, uint256 winningOptionId, address resolver);
     event MarketDisputed(uint256 indexed marketId, address disputer, string reason);
     event Claimed(uint256 indexed marketId, address indexed user, uint256 amount);
-    event MarketPaused(uint256 indexed marketId);
     event PlatformFeesWithdrawn(address indexed collector, uint256 amount);
     event AdminLiquidityWithdrawn(uint256 indexed marketId, address indexed creator, uint256 amount);
     event UnusedPrizePoolWithdrawn(uint256 indexed marketId, address indexed creator, uint256 amount);
     event FeeCollectorUpdated(address indexed oldCollector, address indexed newCollector);
-    event BatchWinningsDistributed(uint256 indexed marketId, uint256 totalDistributed, uint256 recipientCount);
-    event WinningsDistributedToUser(uint256 indexed marketId, address indexed user, uint256 amount);
     event BComputed(uint256 indexed marketId, uint256 bValue, uint256 coverageRatioNum, uint256 coverageRatioDen);
     event FeesUnlocked(uint256 indexed marketId, uint256 amount);
     event FeeAccrued(uint256 indexed marketId, uint256 indexed optionId, bool isBuy, uint256 rawAmount, uint256 fee);
@@ -276,22 +261,9 @@ contract PolicastMarketV3 is Ownable, ReentrancyGuard, AccessControl, Pausable {
 
     constructor(address _bettingToken) Ownable(msg.sender) {
         bettingToken = IERC20(_bettingToken);
-        tokenUpdatedAt = block.timestamp;
+
         feeCollector = msg.sender; // Owner is initial fee collector
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
-
-    //     // Token Management Functions
-    function updateBettingToken(address _newToken) external {
-        if (msg.sender != owner() && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert OnlyAdminOrOwner();
-        if (_newToken == address(0)) revert InvalidToken();
-        if (_newToken == address(bettingToken)) revert SameToken();
-
-        previousBettingToken = address(bettingToken);
-        bettingToken = IERC20(_newToken);
-        tokenUpdatedAt = block.timestamp;
-
-        emit BettingTokenUpdated(previousBettingToken, _newToken, block.timestamp);
     }
 
     function setFeeCollector(address _feeCollector) external onlyOwner {
@@ -988,7 +960,55 @@ contract PolicastMarketV3 is Ownable, ReentrancyGuard, AccessControl, Pausable {
         return true;
     }
 
-    // View Functions
+    // ===================== NEW PUBLIC GETTERS FOR VIEWS CONTRACT =====================
+
+    function getMarketFreeConfig(uint256 _marketId)
+        external
+        view
+        validMarket(_marketId)
+        returns (
+            uint256 maxFreeParticipants,
+            uint256 tokensPerParticipant,
+            uint256 currentFreeParticipants,
+            uint256 totalPrizePool,
+            uint256 remainingPrizePool,
+            bool isActive
+        )
+    {
+        Market storage market = markets[_marketId];
+        if (market.marketType != MarketType.FREE_ENTRY) {
+            return (0, 0, 0, 0, 0, false);
+        }
+        FreeMarketConfig storage config = market.freeConfig;
+        return (
+            config.maxFreeParticipants,
+            config.tokensPerParticipant,
+            config.currentFreeParticipants,
+            config.totalPrizePool,
+            config.remainingPrizePool,
+            config.isActive
+        );
+    }
+
+    function getUserClaimStatus(uint256 _marketId, address _user)
+        external
+        view
+        validMarket(_marketId)
+        returns (bool claimedWinnings, bool claimedFreeTokens)
+    {
+        Market storage market = markets[_marketId];
+        claimedWinnings = market.hasClaimed[_user];
+        if (market.marketType == MarketType.FREE_ENTRY) {
+            claimedFreeTokens = market.freeConfig.hasClaimedFree[_user];
+        } else {
+            claimedFreeTokens = false;
+        }
+    }
+
+    function getMarketDisputeStatus(uint256 _marketId) external view validMarket(_marketId) returns (bool) {
+        return markets[_marketId].disputed;
+    }
+
     // ===================== LMSR HELPERS =====================
 
     function _lmsrCost(uint256 _marketId) internal view returns (uint256) {
@@ -1012,20 +1032,6 @@ contract PolicastMarketV3 is Ownable, ReentrancyGuard, AccessControl, Pausable {
         }
 
         return PolicastLogic.calculateLMSRCost(marketData, options);
-    }
-
-    function _lmsrCostGivenShares(uint256 _marketId, uint256[] memory shares) internal view returns (uint256) {
-        Market storage market = markets[_marketId];
-
-        PolicastLogic.MarketData memory marketData = PolicastLogic.MarketData({
-            optionCount: market.optionCount,
-            lmsrB: market.lmsrB,
-            maxOptionShares: market.maxOptionShares,
-            userLiquidity: market.userLiquidity,
-            adminInitialLiquidity: market.adminInitialLiquidity
-        });
-
-        return PolicastLogic.calculateLMSRCostWithShares(marketData, shares);
     }
 
     function _updateMaxOptionShares(uint256 _marketId, uint256 _optionId) internal {
@@ -1168,6 +1174,32 @@ contract PolicastMarketV3 is Ownable, ReentrancyGuard, AccessControl, Pausable {
     {
         Market storage m = markets[_marketId];
         return (m.winningOptionId, m.disputed, m.validated, m.creator, m.earlyResolutionAllowed);
+    }
+
+    function getMarketFinancialsData(uint256 _marketId)
+        external
+        view
+        validMarket(_marketId)
+        returns (
+            uint256 createdAt,
+            address creator,
+            bool adminLiquidityClaimed,
+            uint256 adminInitialLiquidity,
+            uint256 userLiquidity,
+            uint256 totalVolume,
+            uint256 platformFeesCollected
+        )
+    {
+        Market storage market = markets[_marketId];
+        return (
+            market.createdAt,
+            market.creator,
+            market.adminLiquidityClaimed,
+            market.adminInitialLiquidity,
+            market.userLiquidity,
+            market.totalVolume,
+            market.platformFeesCollected
+        );
     }
 
     // NOTE: getPlatformFeeBreakdownData moved to views to reduce core size

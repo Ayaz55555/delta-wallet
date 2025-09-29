@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.;
 
 import "./Policast.sol";
 import "./PolicastLogic.sol";
@@ -18,58 +18,21 @@ contract PolicastViews {
         external
         view
         returns (
-            string memory title,
+            string memory question,
             string memory description,
             uint256 endTime,
             PolicastMarketV3.MarketCategory category,
-            uint256 optionCount,
-            bool resolved,
-            bool resolvedOutcome,
             PolicastMarketV3.MarketType marketType,
+            bool resolved,
             bool invalidated,
-            uint256 totalVolume
+            address creator,
+            uint256 lmsrB
         )
     {
-        // Checks
-        require(_marketId < policast.marketCount(), "Market does not exist");
-
-        // Effects: None (pure view)
-
-        // Interactions: None
-        (
-            string memory question_,
-            string memory description_,
-            uint256 endTime_,
-            PolicastMarketV3.MarketCategory category_,
-            uint256 optionCount_,
-            bool resolved_,
-            PolicastMarketV3.MarketType marketType_,
-            bool invalidated_,
-            uint256 totalVolume_
-        ) = policast.getMarketBasicInfo(_marketId);
-
-        title = question_;
-        description = description_;
-        endTime = endTime_;
-        category = category_;
-        optionCount = optionCount_;
-        resolved = resolved_;
-        resolvedOutcome = resolved_; // Assuming this is the same as resolved
-        marketType = marketType_;
-        invalidated = invalidated_;
-        totalVolume = totalVolume_;
-        return (
-            title,
-            description,
-            endTime,
-            category,
-            optionCount,
-            resolved,
-            resolvedOutcome,
-            marketType,
-            invalidated,
-            totalVolume
-        );
+        (question, description, endTime, category,, resolved, marketType, invalidated,) =
+            policast.getMarketBasicInfo(_marketId);
+        (,,, creator,) = policast.getMarketExtendedMeta(_marketId);
+        lmsrB = policast.getMarketLMSRB(_marketId);
     }
 
     function getUserShares(uint256 _marketId, address _user) external view returns (uint256[] memory) {
@@ -136,25 +99,73 @@ contract PolicastViews {
         }
     }
 
-    function getPriceHistory(uint256 _marketId, uint256, /* _optionId */ uint256 _limit)
+    function getMarketOption(uint256 _marketId, uint256 _optionId)
         external
         view
-        returns (PolicastMarketV3.PricePoint[] memory)
+        returns (string memory name, uint256 totalShares, uint256 currentPrice, bool isActive)
     {
-        require(_marketId < policast.marketCount(), "Market does not exist");
-        // Return empty array - historical data not available in simplified view
-        PolicastMarketV3.PricePoint[] memory empty = new PolicastMarketV3.PricePoint[](_limit > 0 ? _limit : 0);
-        return empty;
+        string memory description;
+        uint256 totalVolume;
+        (name, description, totalShares, totalVolume, currentPrice, isActive) =
+            policast.getMarketOption(_marketId, _optionId);
     }
 
-    function getMarketsByCategory(PolicastMarketV3.MarketCategory, /* _category */ uint256 _limit)
+    function getMarketFinancials(uint256 _marketId)
         external
-        pure
+        view
+        returns (
+            address creator,
+            bool adminLiquidityClaimed,
+            uint256 adminInitialLiquidity,
+            uint256 userLiquidity,
+            uint256 totalVolume,
+            uint256 platformFeesCollected
+        )
+    {
+        uint256 createdAt;
+        (
+            createdAt,
+            creator,
+            adminLiquidityClaimed,
+            adminInitialLiquidity,
+            userLiquidity,
+            totalVolume,
+            platformFeesCollected
+        ) = policast.getMarketFinancialsData(_marketId);
+    }
+
+    function getMarketTiming(uint256 _marketId)
+        external
+        view
+        returns (uint256 createdAt, uint256 endTime, bool earlyResolutionAllowed)
+    {
+        (,, endTime,,,,,,) = policast.getMarketBasicInfo(_marketId);
+        (,,,, earlyResolutionAllowed) = policast.getMarketExtendedMeta(_marketId);
+        (createdAt,,,,,,) = policast.getMarketFinancialsData(_marketId);
+    }
+
+    function getMarketsByCategory(PolicastMarketV3.MarketCategory _category, uint256 _limit)
+        external
+        view
         returns (uint256[] memory)
     {
-        // Return empty array - category filtering not available in simplified view
-        uint256[] memory empty = new uint256[](_limit > 0 ? _limit : 0);
-        return empty;
+        uint256 marketCount = policast.marketCount();
+        uint256[] memory tempMarkets = new uint256[](marketCount);
+        uint256 count = 0;
+
+        for (uint256 i = 0; i < marketCount && (_limit == 0 || count < _limit); i++) {
+            (,,, PolicastMarketV3.MarketCategory category,,,,,) = policast.getMarketBasicInfo(i);
+            if (category == _category) {
+                tempMarkets[count] = i;
+                count++;
+            }
+        }
+
+        uint256[] memory result = new uint256[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = tempMarkets[i];
+        }
+        return result;
     }
 
     function getUserMarkets(address _user) external view returns (uint256[] memory) {
@@ -233,19 +244,6 @@ contract PolicastViews {
         return eventMarkets;
     }
 
-    function getMarketParticipants(uint256 _marketId)
-        external
-        view
-        returns (address[] memory participants, uint256 participantCount)
-    {
-        require(_marketId < policast.marketCount(), "Market does not exist");
-        // Return empty arrays since participants data is not easily accessible
-        // This function was removed from main contract for size optimization
-        participants = new address[](0);
-        participantCount = 0;
-        return (participants, participantCount);
-    }
-
     function getMarketCount() external view returns (uint256) {
         return policast.marketCount();
     }
@@ -304,9 +302,9 @@ contract PolicastViews {
         return invalidated;
     }
 
-    function getMarketResolvedOutcome(uint256 _marketId) external view returns (bool) {
-        (,,,,, bool resolvedOutcome,,,) = policast.getMarketBasicInfo(_marketId);
-        return resolvedOutcome;
+    function getMarketResolvedOutcome(uint256 _marketId) external view returns (uint256) {
+        (uint256 winningOptionId,,,,) = policast.getMarketExtendedMeta(_marketId);
+        return winningOptionId;
     }
 
     function getMarketTotalVolume(uint256 _marketId) external view returns (uint256) {
@@ -334,23 +332,66 @@ contract PolicastViews {
         return early;
     }
 
-    // Additional view functions moved from main contract to reduce size
+    // ===================== NEWLY ADDED FUNCTIONS =====================
 
-    function getMarketOption(uint256 _marketId, uint256 _optionId)
+    function getFreeMarketInfo(uint256 _marketId)
         external
         view
         returns (
-            string memory name,
-            string memory description,
-            uint256 totalShares,
-            uint256 totalVolume,
-            uint256 currentPrice,
+            uint256 maxFreeParticipants,
+            uint256 tokensPerParticipant,
+            uint256 currentFreeParticipants,
+            uint256 totalPrizePool,
+            uint256 remainingPrizePool,
             bool isActive
         )
     {
-        require(_marketId < policast.marketCount(), "Market does not exist");
-        return policast.getMarketOption(_marketId, _optionId);
+        return policast.getMarketFreeConfig(_marketId);
     }
+
+    function hasUserClaimedFreeTokens(uint256 _marketId, address _user) external view returns (bool) {
+        (, bool claimedFree) = policast.getUserClaimStatus(_marketId, _user);
+        return claimedFree;
+    }
+
+    function hasUserClaimedWinnings(uint256 _marketId, address _user) external view returns (bool) {
+        (bool claimedWinnings,) = policast.getUserClaimStatus(_marketId, _user);
+        return claimedWinnings;
+    }
+
+    function getMarketOdds(uint256 _marketId) external view returns (uint256[] memory) {
+        uint256 optionCount = this.getMarketOptionCount(_marketId);
+        uint256[] memory odds = new uint256[](optionCount);
+        for (uint256 i = 0; i < optionCount; i++) {
+            odds[i] = this.calculateCurrentPrice(_marketId, i);
+        }
+        return odds;
+    }
+
+    enum MarketStatus {
+        ACTIVE,
+        RESOLVED,
+        INVALIDATED,
+        DISPUTED
+    }
+
+    function getMarketStatus(uint256 _marketId) external view returns (MarketStatus) {
+        (,,,,, bool resolved,, bool invalidated,) = policast.getMarketBasicInfo(_marketId);
+        bool disputed = policast.getMarketDisputeStatus(_marketId);
+
+        if (invalidated) {
+            return MarketStatus.INVALIDATED;
+        }
+        if (disputed) {
+            return MarketStatus.DISPUTED;
+        }
+        if (resolved) {
+            return MarketStatus.RESOLVED;
+        }
+        return MarketStatus.ACTIVE;
+    }
+
+    // Additional view functions moved from main contract to reduce size
 
     function getPlatformStats()
         external
@@ -386,154 +427,59 @@ contract PolicastViews {
         return (cumulativeFees, lockedFees, unlockedFees, withdrawnFees, collector);
     }
 
-    function getMarketFeeStatus(uint256 _marketId)
-        external
-        view
-        returns (uint256 collected, bool unlocked, uint256 lockedPortion)
-    {
-        require(_marketId < policast.marketCount(), "Market does not exist");
-        // Reconstruct using per-market reads from basic + extended meta & platform fees events not needed
-        // We don't have direct per-market feesUnlocked flag exposed; infer via: if unlocked portion reflected in
-        // global unlocked fees decreasing? Simpler: expose an approximate view by comparing collected vs 0 locked.
-        // Since original granular flag removed, return best-effort: treat fees as unlocked if global unlockedFees >= collected.
-        collected = 0; // iterate options to approximate platformFeesCollected not directly exposed; fallback 0
-        // Without direct storage exposure we cannot reliably recompute; return zeros to keep interface stable.
-        // Frontend should migrate to events or aggregated fee stats.
-        unlocked = false;
-        lockedPortion = 0;
-        return (collected, unlocked, lockedPortion);
+    function getMarketFeeStatus(uint256 _marketId) external view returns (bool feesUnlocked) {
+        // Fees are unlocked when a market is resolved.
+        (,,,,, bool resolved,,,) = policast.getMarketBasicInfo(_marketId);
+        return resolved;
     }
 
     function getWithdrawableAdminLiquidity(uint256 _marketId) external view returns (uint256) {
-        require(_marketId < policast.marketCount(), "Market does not exist");
-        // Cannot access internal struct fields (resolved, invalidated, adminLiquidityClaimed, adminInitialLiquidity)
-        // because rich getters were removed. Return 0 as conservative default; frontend can infer via events.
-        return 0;
-    }
+        (,,,,, bool resolved,, bool invalidated,) = policast.getMarketBasicInfo(_marketId);
+        (, address creator, bool adminLiquidityClaimed, uint256 adminInitialLiquidity,,,) =
+            policast.getMarketFinancialsData(_marketId);
 
-    function feeAccountingInvariant() external pure returns (bool ok, uint256 recordedSum, uint256 expected) {
-        // Return simplified invariant check since function was removed from main contract
-        return (true, 0, 0);
-    }
-
-    function getFreeMarketInfo(uint256 _marketId)
-        external
-        view
-        returns (
-            uint256 maxFreeParticipants,
-            uint256 tokensPerParticipant,
-            uint256 currentFreeParticipants,
-            uint256 totalPrizePool,
-            uint256 remainingPrizePool,
-            bool isActive
-        )
-    {
-        require(_marketId < policast.marketCount(), "Market does not exist");
-        // Return default values since free market info function was removed for size optimization
-        return (0, 0, 0, 0, 0, false);
-    }
-
-    function hasUserClaimedFreeTokens(uint256 _marketId, address /* _user */ ) external view returns (bool, uint256) {
-        require(_marketId < policast.marketCount(), "Market does not exist");
-        return (false, 0); // Return default values since function was removed for size optimization
-    }
-
-    function hasUserClaimedWinnings(uint256 _marketId, address /* _user */ ) external view returns (bool) {
-        require(_marketId < policast.marketCount(), "Market does not exist");
-        return false; // Return default since function was removed for size optimization
-    }
-
-    function getUserWinnings(uint256 _marketId, address /* _user */ )
-        external
-        view
-        returns (bool hasWinnings, uint256 amount)
-    {
-        require(_marketId < policast.marketCount(), "Market does not exist");
-        return (false, 0); // Return default since function was removed for size optimization
-    }
-
-    function getMarketStatus(uint256 _marketId)
-        external
-        view
-        returns (bool isActive, bool isResolved, bool isExpired, bool canTrade, bool canResolve, uint256 timeRemaining)
-    {
-        require(_marketId < policast.marketCount(), "Market does not exist");
-        // Reconstruct status from basic market info
-        (,, uint256 endTime,,, bool resolved,, bool invalidated,) = policast.getMarketBasicInfo(_marketId);
-        isActive = !resolved && !invalidated && block.timestamp < endTime;
-        isResolved = resolved;
-        isExpired = block.timestamp >= endTime && !resolved;
-        canTrade = isActive; // Simplified - no validation check
-        canResolve = block.timestamp >= endTime; // Simplified - no validation check
-        timeRemaining = block.timestamp >= endTime ? 0 : endTime - block.timestamp;
-        return (isActive, isResolved, isExpired, canTrade, canResolve, timeRemaining);
-    }
-
-    function getMarketTiming(uint256 _marketId)
-        external
-        view
-        returns (uint256 createdAt, uint256 endTime, uint256 timeRemaining, bool hasExpired)
-    {
-        require(_marketId < policast.marketCount(), "Market does not exist");
-        // Reconstruct timing from basic market info
-        (,, uint256 endTime_,,,,,,) = policast.getMarketBasicInfo(_marketId);
-        timeRemaining = block.timestamp >= endTime_ ? 0 : endTime_ - block.timestamp;
-        hasExpired = block.timestamp >= endTime_;
-        return (0, endTime_, timeRemaining, hasExpired); // createdAt set to 0 since not available
-    }
-
-    function getMarketFinancials(uint256 _marketId)
-        external
-        view
-        returns (
-            uint256 adminInitialLiquidity,
-            uint256 userLiquidity,
-            uint256 platformFeesCollected,
-            bool adminLiquidityClaimed
-        )
-    {
-        require(_marketId < policast.marketCount(), "Market does not exist");
-        // Return default values since financial details function was removed for size optimization
-        return (0, 0, 0, false);
-    }
-
-    function getMarketOdds(uint256 _marketId) external view returns (uint256[] memory) {
-        require(_marketId < policast.marketCount(), "Market does not exist");
-
-        (,,,, uint256 optionCount,,,,) = policast.getMarketBasicInfo(_marketId);
-        uint256[] memory odds = new uint256[](optionCount);
-
-        for (uint256 i = 0; i < optionCount; i++) {
-            uint256 price = this.calculateCurrentPrice(_marketId, i);
-            // Calculate odds as PAYOUT_PER_SHARE / price
-            if (price > 0) {
-                odds[i] = (PAYOUT_PER_SHARE * 1e18) / price; // Scale by 1e18 for precision
-            } else {
-                odds[i] = 0;
-            }
+        if (msg.sender != creator) {
+            return 0;
         }
-        return odds;
-    }
 
-    // New: Get option price in tokens per share (probability * PAYOUT_PER_SHARE)
-    // New: Get option price in tokens per share (probability * PAYOUT_PER_SHARE) - moved from main contract
-    function getOptionPriceInTokens(uint256 _marketId, uint256 _optionId) external view returns (uint256) {
-        (,,,, uint256 currentPrice, bool isActive) = policast.getMarketOption(_marketId, _optionId);
-        require(isActive, "Option inactive");
-        return (currentPrice * PAYOUT_PER_SHARE) / 1e18;
-    }
-
-    // New: Get all current option prices in tokens per share - moved from main contract
-    function getMarketPricesInTokens(uint256 _marketId) external view returns (uint256[] memory) {
-        (,,,, uint256 optionCount,,,,) = policast.getMarketBasicInfo(_marketId);
-        uint256[] memory prices = new uint256[](optionCount);
-        for (uint256 i = 0; i < optionCount; i++) {
-            (,,,, uint256 currentPrice, bool isActive) = policast.getMarketOption(_marketId, i);
-            if (isActive) {
-                prices[i] = (currentPrice * PAYOUT_PER_SHARE) / 1e18;
-            }
+        if (!resolved && !invalidated) {
+            return 0;
         }
-        return prices;
+
+        if (adminLiquidityClaimed) {
+            return 0;
+        }
+
+        return adminInitialLiquidity;
+    }
+
+    // The following functions are degraded because the data is not available through simple getters
+    // from the main contract. They are intended to be served by an off-chain indexer.
+
+    function getPriceHistory(uint256, /*_marketId*/ uint256 /*_optionId*/ )
+        external
+        pure
+        returns (PolicastMarketV3.PricePoint[] memory)
+    {
+        // This data is expected to be served by an off-chain indexer listening to events.
+        // The public getter for array data is not suitable for returning the whole array.
+        return new PolicastMarketV3.PricePoint[](0);
+    }
+
+    function getMarketsByCategory(PolicastMarketV3.MarketCategory _category) external view returns (uint256[] memory) {
+        return this.getMarketsByCategory(_category, 0);
+    }
+
+    function getUserWinnings(address _user, uint256 _marketId) external view returns (uint256) {
+        // This requires calculation based on winning shares and payout, which is done in claimWinnings.
+        // A simple view is not provided to save contract size.
+        (uint256 winningOptionId,,,,) = policast.getMarketExtendedMeta(_marketId);
+        (,,,,, bool resolved,,,) = policast.getMarketBasicInfo(_marketId);
+        if (!resolved) {
+            return 0;
+        }
+        uint256 userWinningShares = policast.getMarketOptionUserShares(_marketId, winningOptionId, _user);
+        return (userWinningShares * policast.PAYOUT_PER_SHARE()) / 1e18;
     }
 
     // Additional getters moved from main contract to reduce size
@@ -553,7 +499,7 @@ contract PolicastViews {
         // Calculate price directly to avoid circular dependency
         (,,,, uint256 currentPrice, bool isActive) = policast.getMarketOption(_marketId, _optionId);
         require(isActive, "Option inactive");
-        return (currentPrice * PAYOUT_PER_SHARE) / 1e18;
+        return (currentPrice * policast.PAYOUT_PER_SHARE()) / 1e18;
     }
 
     // Calculate user's unrealized PnL across all positions
@@ -601,26 +547,6 @@ contract PolicastViews {
 
         return totalUnrealized;
     }
-
-    // Moved from main contract to reduce size
-    // function calculateSellPrice(uint256 _marketId, uint256 _optionId, uint256 _quantity)
-    //     external
-    //     view
-    //     returns (uint256)
-    // {
-    //     // Get market option data from main contract
-    //     (,, , , uint256 currentPrice, bool isActive) =
-    //         policast.getMarketOption(_marketId, _optionId);
-
-    //     require(isActive, "Option inactive");
-
-    //     // Use option-specific pricing consistent with new approach
-    //     // Convert probability price to token price using payout per share
-    //     uint256 probTimesQty = (currentPrice * _quantity) / 1e18; // still 1e18-scaled
-    //     uint256 rawRefund = (probTimesQty * PAYOUT_PER_SHARE) / 1e18; // tokens
-    //     uint256 fee = (rawRefund * policast.platformFeeRate()) / 10000;
-    //     return rawRefund - fee; // Net proceeds
-    // }
 
     // Quote buy cost using LMSR ΔC (includes fee)
     function quoteBuy(uint256 _marketId, uint256 _optionId, uint256 _quantity)
