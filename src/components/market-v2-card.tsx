@@ -160,6 +160,27 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
   const [options, setOptions] = useState<MarketOption[]>([]);
   const [totalVolume, setTotalVolume] = useState<bigint>(0n);
 
+  // Log server-provided options for debugging missing UI
+  useEffect(() => {
+    try {
+      const serverOptions = (market as any).options;
+      console.debug(
+        `[MarketV2Card] market ${index} - server-provided options:`,
+        {
+          optionCount: (market as any).optionCount,
+          optionsLength: Array.isArray(serverOptions)
+            ? serverOptions.length
+            : 0,
+          optionsSample: Array.isArray(serverOptions)
+            ? serverOptions.slice(0, 3)
+            : [],
+        }
+      );
+    } catch (e) {
+      /* ignore */
+    }
+  }, [market, index]);
+
   // Fetch full market info (legacy multi-field tuple)
   const { data: marketInfo } = useReadContract({
     address: PolicastViews,
@@ -228,9 +249,39 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     query: { enabled: !!address },
   });
 
-  // Fetch options data with real-time prices
+  // Fetch options data. Prefer server-provided `market.options` when available
+  // because it's the canonical shape the app builds (and avoids timing issues
+  // where on-chain `getMarketInfo` is not yet available or returns legacy
+  // positional values).
   useEffect(() => {
     const fetchOptions = async () => {
+      // If the server-provided market already includes options, use them first
+      if (
+        market.options &&
+        Array.isArray(market.options) &&
+        market.options.length > 0
+      ) {
+        console.debug(
+          `[MarketV2Card] market ${index} - initializing options from server-provided market.options: ${market.options.length}`
+        );
+
+        const mapped = market.options.map((opt: any, i: number) => ({
+          name: opt.name ?? `Option ${i + 1}`,
+          description: opt.description ?? "",
+          totalShares: BigInt(opt.totalShares ?? 0),
+          totalVolume: BigInt(opt.totalVolume ?? 0),
+          currentPrice: BigInt(opt.currentPrice ?? 0),
+          isActive: typeof opt.isActive === "boolean" ? opt.isActive : true,
+        }));
+
+        setOptions(mapped);
+        setTotalVolume(
+          mapped.reduce((acc, o) => acc + (o.totalVolume ?? 0n), 0n)
+        );
+        return;
+      }
+
+      // Otherwise fall back to the legacy on-chain getMarketInfo path
       if (!marketInfo) {
         console.log(
           `[MarketV2Card] market ${index} - marketInfo not available yet`
@@ -311,7 +362,7 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     };
 
     fetchOptions();
-  }, [index, marketInfo]);
+  }, [index, marketInfo, market.options]);
 
   // Fetch comment count
   useEffect(() => {
@@ -517,13 +568,17 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
               />
             </div>
           )}
-        {options.length > 0 && (
+        {options.length > 0 ? (
           <MultiOptionProgress
             marketId={index}
             options={options}
             totalVolume={totalVolume}
             className="mb-4"
           />
+        ) : (
+          <div className="mb-4 text-sm text-gray-500">
+            Options not available yet.
+          </div>
         )}
 
         {isExpired ? (
