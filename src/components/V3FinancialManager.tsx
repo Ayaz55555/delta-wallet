@@ -18,7 +18,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { V2contractAddress, V2contractAbi } from "@/constants/contract";
+import {
+  V2contractAddress,
+  V2contractAbi,
+  PolicastViews,
+  PolicastViewsAbi,
+} from "@/constants/contract";
 import { Loader2, DollarSign, TrendingUp, Coins } from "lucide-react";
 //
 interface V3FinancialManagerProps {
@@ -47,19 +52,27 @@ export function V3FinancialManager({
   const { isLoading: isConfirming, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({ hash });
 
-  // Fetch market info to determine creator
-  const { data: marketInfo } = useReadContract({
+  // Fetch market basic info & extended meta to determine creator and status
+  const { data: marketBasic } = useReadContract({
     address: V2contractAddress,
     abi: V2contractAbi,
-    functionName: "getMarketInfo",
+    functionName: "getMarketBasicInfo",
+    args: marketId !== undefined ? [BigInt(marketId)] : undefined,
+    query: { enabled: isConnected && marketId !== undefined },
+  });
+
+  const { data: marketExtended } = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketExtendedMeta",
     args: marketId !== undefined ? [BigInt(marketId)] : undefined,
     query: { enabled: isConnected && marketId !== undefined },
   });
 
   // Fetch market fee status instead of financials
   const { data: marketFeeStatus, refetch: refetchFeeStatus } = useReadContract({
-    address: V2contractAddress,
-    abi: V2contractAbi,
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
     functionName: "getMarketFeeStatus",
     args: marketId !== undefined ? [BigInt(marketId)] : undefined,
     query: { enabled: isConnected && marketId !== undefined },
@@ -78,39 +91,31 @@ export function V3FinancialManager({
   // Fetch platform fee breakdown instead of platform stats
   const { data: platformFeeBreakdown, refetch: refetchPlatformFeeBreakdown } =
     useReadContract({
-      address: V2contractAddress,
-      abi: V2contractAbi,
-      functionName: "getPlatformFeeBreakdownData",
+      address: PolicastViews,
+      abi: PolicastViewsAbi,
+      functionName: "getPlatformFeeBreakdown",
       query: { enabled: isConnected && isFeeCollector },
     });
 
   // Determine actual roles based on contract data
   useEffect(() => {
-    if (marketInfo && address) {
-      // getMarketInfo returns: [question, description, endTime, category, optionCount, resolved, winningOptionId, disputed, validated, invalidated, totalVolume, creator, earlyResolutionAllowed]
-      const marketInfoArray = marketInfo as readonly [
-        string,
-        string,
-        bigint,
-        number,
-        bigint,
-        boolean,
+    if (marketExtended && address) {
+      // getMarketExtendedMeta returns: [winningOptionId, disputed, validated, creator, earlyResolutionAllowed]
+      const extended = marketExtended as readonly [
         bigint,
         boolean,
         boolean,
-        boolean,
-        bigint,
         `0x${string}`,
         boolean
       ];
-      const creator = marketInfoArray[11];
+      const creator = extended[3];
       setActualIsCreator(
         creator && address
           ? creator.toLowerCase() === address.toLowerCase()
           : false
       );
     }
-  }, [marketInfo, address]);
+  }, [marketExtended, address]);
 
   useEffect(() => {
     if (userPortfolio && address) {

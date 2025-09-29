@@ -13,6 +13,8 @@ import {
   V2contractAddress,
   V2contractAbi,
   publicClient,
+  PolicastViews,
+  PolicastViewsAbi,
 } from "@/constants/contract";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +34,11 @@ import {
   Hash,
 } from "lucide-react";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import {
+  mapMarketInfo,
+  MarketBasicInfoTuple,
+  MarketExtendedMetaTuple,
+} from "@/types/market";
 import Link from "next/link";
 
 interface PendingMarket {
@@ -115,66 +122,35 @@ export function MarketValidationManager() {
         const endIndex = Math.min(i + batchSize, marketCount);
 
         for (let j = i; j < endIndex; j++) {
+          // For each market, fetch basic info and extended meta in parallel
           promises.push(
-            publicClient.readContract({
-              address: V2contractAddress as `0x${string}`,
-              abi: V2contractAbi,
-              functionName: "getMarketInfo",
-              args: [BigInt(j)],
-            })
+            Promise.all([
+              publicClient.readContract({
+                address: V2contractAddress,
+                abi: V2contractAbi,
+                functionName: "getMarketBasicInfo",
+                args: [BigInt(j)],
+              }),
+              publicClient.readContract({
+                address: V2contractAddress,
+                abi: V2contractAbi,
+                functionName: "getMarketExtendedMeta",
+                args: [BigInt(j)],
+              }),
+            ]).then(([basic, extended]) => ({ basic, extended, marketId: j }))
           );
         }
 
-        const batchResults = await Promise.all(promises);
+        const batchResults = await Promise.all(
+          promises as Promise<{
+            marketId: number;
+            basic: MarketBasicInfoTuple;
+            extended: MarketExtendedMetaTuple;
+          }>[]
+        );
 
-        batchResults.forEach((result, index) => {
-          const marketId = i + index;
-          const [
-            question,
-            description,
-            endTime,
-            category,
-            optionCount,
-            resolved,
-            winningOptionId,
-            disputed,
-            validated,
-            invalidated,
-            totalVolume,
-            creator,
-            earlyResolutionAllowed,
-          ] = result as [
-            string,
-            string,
-            bigint,
-            number,
-            bigint,
-            boolean,
-            bigint,
-            boolean,
-            boolean,
-            boolean,
-            bigint,
-            string,
-            boolean
-          ];
-
-          markets.push({
-            marketId,
-            question,
-            description,
-            creator,
-            createdAt: BigInt(0), // We don't have creation time from this call
-            endTime,
-            optionCount,
-            category,
-            validated,
-            invalidated,
-            resolved,
-            disputed,
-            totalVolume,
-            earlyResolutionAllowed,
-          });
+        batchResults.forEach(({ basic, extended, marketId }) => {
+          markets.push(mapMarketInfo(marketId, basic, extended));
         });
       }
 

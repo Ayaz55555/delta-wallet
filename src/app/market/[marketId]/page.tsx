@@ -4,6 +4,8 @@ import {
   publicClient,
   V2contractAddress,
   V2contractAbi,
+  PolicastViews,
+  PolicastViewsAbi,
 } from "@/constants/contract";
 import { Metadata, ResolvingMetadata } from "next";
 import { notFound, redirect } from "next/navigation";
@@ -56,8 +58,8 @@ async function fetchMarketData(marketId: string) {
       args: [marketIdBigInt],
     }) as Promise<MarketInfoV1ContractReturn>,
     (await publicClient.readContract({
-      address: V2contractAddress,
-      abi: V2contractAbi,
+      address: PolicastViews,
+      abi: PolicastViewsAbi,
       functionName: "getMarketInfo",
       args: [marketIdBigInt],
     })) as unknown as MarketInfoV2ContractReturn,

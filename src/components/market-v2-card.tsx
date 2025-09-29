@@ -15,6 +15,8 @@ import {
   V2contractAddress,
   V2contractAbi,
   publicClient,
+  PolicastViews,
+  PolicastViewsAbi,
 } from "@/constants/contract";
 import { MultiOptionProgress } from "./multi-option-progress";
 import MarketTime from "./market-time";
@@ -31,6 +33,7 @@ import {
 import { MessageCircle, Gift } from "lucide-react";
 import { MarketV2, MarketOption, MarketCategory } from "@/types/types";
 import { FreeMarketClaimStatus } from "./FreeMarketClaimStatus";
+import { FreeTokenClaimButton } from "./FreeTokenClaimButton";
 
 // Add LinkifiedText component for URL preview support//
 const LinkifiedText = ({ text }: { text: string }) => {
@@ -157,13 +160,51 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
   const [options, setOptions] = useState<MarketOption[]>([]);
   const [totalVolume, setTotalVolume] = useState<bigint>(0n);
 
-  // Fetch all options for this market
+  // Fetch full market info (legacy multi-field tuple)
   const { data: marketInfo } = useReadContract({
-    address: V2contractAddress,
-    abi: V2contractAbi,
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
     functionName: "getMarketInfo",
     args: [BigInt(index)],
   });
+
+  // Fetch explicit market type (more reliable than positional index)
+  const { data: marketTypeData } = useReadContract({
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
+    functionName: "getMarketType",
+    args: [BigInt(index)],
+  });
+
+  // Normalized marketType (0 = paid, 1 = free) with fallback to positional index if explicit read missing
+  const derivedMarketType: number | undefined = (() => {
+    if (typeof marketTypeData === "number") return marketTypeData;
+    if (marketTypeData && typeof marketTypeData === "bigint")
+      return Number(marketTypeData);
+    if (
+      marketInfo &&
+      Array.isArray(marketInfo) &&
+      marketInfo.length > 7 &&
+      typeof marketInfo[7] === "number" &&
+      (marketInfo[7] === 0 || marketInfo[7] === 1)
+    ) {
+      // Legacy fallback path
+      return marketInfo[7] as number;
+    }
+    return undefined;
+  })();
+
+  useEffect(() => {
+    if (derivedMarketType !== undefined) {
+      console.debug(
+        `[MarketV2Card] market ${index} marketType detected: ${derivedMarketType}`
+      );
+    } else {
+      console.debug(
+        `[MarketV2Card] market ${index} marketType unresolved yet (waiting for contract reads)`
+      );
+    }
+  }, [derivedMarketType, index]);
 
   // Fetch user shares for this market
   const { data: userShares } = (useReadContract as any)({
@@ -267,11 +308,8 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
             <div className="flex items-center gap-2">
               <CategoryBadge category={market.category} />
               <InvalidatedBadge />
-              {/* Show free market badge if marketType is 1 */}
-              {marketInfo &&
-                marketInfo.length > 7 &&
-                typeof marketInfo[7] === "number" &&
-                marketInfo[7] === 1 && <FreeMarketBadge />}
+              {/* Show free market badge if marketType === 1 */}
+              {derivedMarketType === 1 && <FreeMarketBadge />}
               {/* Show event-based badge if early resolution is allowed */}
               {market.earlyResolutionAllowed && <EventBasedBadge />}
             </div>
@@ -286,7 +324,11 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
           )}
 
           {/* Free Market Claim Status */}
-          <FreeMarketClaimStatus marketId={index} className="mt-3" />
+          <FreeMarketClaimStatus
+            marketId={index}
+            className="mt-3"
+            marketType={derivedMarketType}
+          />
         </CardHeader>
         <CardContent className="pb-4">
           <div className="text-center py-4">
@@ -351,11 +393,8 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
           <div className="flex items-center gap-2">
             <CategoryBadge category={market.category} />
             {isInvalidated && <InvalidatedBadge />}
-            {/* Show free market badge if marketType is 1 */}
-            {marketInfo &&
-              marketInfo.length > 7 &&
-              typeof marketInfo[7] === "number" &&
-              marketInfo[7] === 1 && <FreeMarketBadge />}
+            {/* Show free market badge if marketType === 1 */}
+            {derivedMarketType === 1 && <FreeMarketBadge />}
             {/* Show event-based badge if early resolution is allowed */}
             {market.earlyResolutionAllowed && <EventBasedBadge />}
           </div>
@@ -370,10 +409,27 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
         )}
 
         {/* Free Market Claim Status */}
-        <FreeMarketClaimStatus marketId={index} className="mt-3" />
+        <FreeMarketClaimStatus
+          marketId={index}
+          className="mt-3"
+          marketType={derivedMarketType}
+        />
       </CardHeader>
 
       <CardContent className="pb-0">
+        {/* Free token claim button (full CTA) shown only for active, non-expired free markets */}
+        {derivedMarketType === 1 &&
+          !isResolved &&
+          !isInvalidated &&
+          !isExpired && (
+            <div className="mb-4">
+              <FreeTokenClaimButton
+                marketId={index}
+                marketTypeOverride={derivedMarketType}
+                showWhenDisconnected={true}
+              />
+            </div>
+          )}
         {options.length > 0 && (
           <MultiOptionProgress
             marketId={index}

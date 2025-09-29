@@ -44,6 +44,24 @@ export function V3AdminDashboard() {
   const [adminLiquidityMarketId, setAdminLiquidityMarketId] = useState("");
   const [prizePoolMarketId, setPrizePoolMarketId] = useState("");
 
+  // Deprecation notice
+  const DeprecationBanner = () => (
+    <Card className="mb-4 border-orange-200 bg-orange-50">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 text-orange-600" />
+          <p className="text-orange-800">
+            This V3 admin dashboard is deprecated. Please use the{" "}
+            <a href="/admin" className="underline font-medium">
+              Modern Admin Dashboard
+            </a>{" "}
+            for the latest features and improvements.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   // Use the custom hook for platform data
   const {
     globalStats,
@@ -297,6 +315,9 @@ export function V3AdminDashboard() {
 
   return (
     <div className="px-4 md:px-0 space-y-4 md:space-y-6 mb-16 md:mb-20 max-w-full overflow-hidden">
+      {/* Deprecation Banner */}
+      <DeprecationBanner />
+
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0">
         <div className="min-w-0 flex-1">
           <h1 className="text-xl md:text-3xl font-bold truncate">

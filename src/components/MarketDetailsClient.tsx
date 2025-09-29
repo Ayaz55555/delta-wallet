@@ -9,7 +9,6 @@ import { Footer } from "@/components/footer";
 import { Toaster } from "@/components/ui/toaster";
 import { Clock, Award, Users } from "lucide-react";
 import { MarketBuyInterface } from "@/components/market-buy-interface";
-import { MarketV2BuyInterface } from "@/components/market-v2-buy-interface";
 import { MarketV2PositionManager } from "@/components/MarketV2PositionManager";
 import { V3FinancialManager } from "@/components/V3FinancialManager";
 import { MarketResolved } from "@/components/market-resolved";
@@ -25,6 +24,7 @@ import { MarketChart } from "@/components/market-chart";
 import { CommentSystem } from "@/components/CommentSystem";
 import { MarketV2, MarketOption, MarketCategory } from "@/types/types";
 import { useV3UserRoles } from "@/hooks/useV3UserRoles";
+import { FreeTokenClaimButton } from "@/components/FreeTokenClaimButton";
 
 interface Market {
   question: string;
@@ -49,6 +49,8 @@ interface Market {
   version?: "v1" | "v2";
   // Event-based market support
   earlyResolutionAllowed?: boolean;
+  // Market type for free markets
+  marketType?: number;
 }
 
 interface MarketDetailsClientProps {
@@ -327,6 +329,15 @@ export function MarketDetailsClient({
           </div>
         </div>
 
+        {/* Free Token Claim Button - Show for V2 free markets */}
+        {market.version === "v2" && market.marketType === 1 && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 md:p-6 mb-4 md:mb-6">
+            <div className="flex items-center justify-center">
+              <FreeTokenClaimButton marketId={Number(marketId)} />
+            </div>
+          </div>
+        )}
+
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 md:p-6">
           <div className="mb-4 md:mb-6">
             {isEnded ? (
@@ -350,7 +361,7 @@ export function MarketDetailsClient({
                 <MarketPending />
               )
             ) : market.version === "v2" ? (
-              <MarketV2BuyInterface
+              <MarketV2PositionManager
                 marketId={Number(marketId)}
                 market={
                   {
@@ -405,54 +416,6 @@ export function MarketDetailsClient({
               />
             )}
           </div>
-
-          {/* V2 Position Manager - only show for V2 markets */}
-          {market.version === "v2" && (
-            <div className="mt-6 md:mt-8 border-t border-gray-200 dark:border-gray-700 pt-4 md:pt-6">
-              <MarketV2PositionManager
-                marketId={Number(marketId)}
-                market={
-                  {
-                    question: market.question,
-                    description: market.description || market.question,
-                    endTime: market.endTime,
-                    category: convertToMarketCategory(market.category),
-                    marketType: 0, // PAID market type
-                    optionCount: BigInt(market.options?.length || 2),
-                    options: (market.options || []).map((option, index) => ({
-                      name: option || `Option ${index + 1}`,
-                      description: option || `Option ${index + 1}`,
-                      totalShares: market.optionShares?.[index] || 0n,
-                      totalVolume: 0n,
-                      currentPrice: 0n, // Will be fetched by the component
-                      isActive: !market.resolved,
-                    })) satisfies MarketOption[],
-                    resolved: market.resolved,
-                    disputed: market.disputed || false,
-                    validated: true,
-                    invalidated: false,
-                    winningOptionId: BigInt(
-                      market.resolved ? market.outcome ?? 0 : 0
-                    ),
-                    creator:
-                      market.creator ||
-                      "0x0000000000000000000000000000000000000000",
-                    createdAt: 0n,
-                    adminInitialLiquidity: 0n,
-                    userLiquidity: totalSharesInUnits,
-                    totalVolume: 0n,
-                    platformFeesCollected: 0n,
-                    ammFeesCollected: 0n,
-                    adminLiquidityClaimed: false,
-                    ammLiquidityPool: 0n,
-                    payoutIndex: 0n,
-                    earlyResolutionAllowed:
-                      market.earlyResolutionAllowed || false,
-                  } satisfies MarketV2
-                }
-              />
-            </div>
-          )}
 
           {/* V3 Financial Manager - only show for resolved V2 markets */}
           {market.version === "v2" && market.resolved && (

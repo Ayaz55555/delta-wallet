@@ -279,33 +279,30 @@ export function VoteHistory() {
     if (uncachedV2Ids.length > 0) {
       for (const marketId of uncachedV2Ids) {
         try {
-          const marketInfo = (await publicClient.readContract({
+          const marketBasicInfo = (await publicClient.readContract({
             address: V2contractAddress,
             abi: V2contractAbi,
-            functionName: "getMarketInfo",
+            functionName: "getMarketBasicInfo",
             args: [BigInt(marketId)],
-          })) as unknown as [
-            string,
-            string,
-            bigint,
-            number,
-            bigint,
-            boolean,
-            boolean,
-            number,
-            boolean,
-            bigint,
-            string
+          })) as [
+            string, // question
+            string, // description
+            bigint, // endTime
+            number, // category
+            bigint, // optionCount
+            boolean, // resolved
+            number, // marketType
+            boolean, // invalidated
+            bigint // totalVolume
           ];
 
-          const [question] = marketInfo;
+          const [question, , , , optionCount] = marketBasicInfo;
 
-          // We need to get the options separately since getMarketInfo doesn't return them
+          // We need to get the options separately since getMarketBasicInfo doesn't return them
           // Let's get the option count first, then fetch each option
-          const optionCount = Number(marketInfo[4]); // optionCount is the 5th element
           const options: string[] = [];
 
-          for (let optionId = 0; optionId < optionCount; optionId++) {
+          for (let optionId = 0; optionId < Number(optionCount); optionId++) {
             try {
               const optionInfo = (await publicClient.readContract({
                 address: V2contractAddress,

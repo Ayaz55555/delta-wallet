@@ -4,6 +4,8 @@ import {
   V2contractAddress,
   V2contractAbi,
   publicClient,
+  PolicastViewsAbi,
+  PolicastViews,
 } from "@/constants/contract";
 import {
   Market,
@@ -27,8 +29,8 @@ export async function detectMarketVersion(
         args: [BigInt(marketId)],
       }),
       publicClient.readContract({
-        address: V2contractAddress,
-        abi: V2contractAbi,
+        address: PolicastViews,
+        abi: PolicastViewsAbi,
         functionName: "getMarketInfo",
         args: [BigInt(marketId)],
       }),
@@ -125,8 +127,8 @@ export async function fetchV1Market(marketId: number): Promise<Market> {
 // Fetch V2 market data
 export async function fetchV2Market(marketId: number): Promise<MarketV2> {
   const marketInfoRaw = await publicClient.readContract({
-    address: V2contractAddress,
-    abi: V2contractAbi,
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
     functionName: "getMarketInfo",
     args: [BigInt(marketId)],
   });

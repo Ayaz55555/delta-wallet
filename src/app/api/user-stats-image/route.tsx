@@ -75,24 +75,23 @@ async function fetchUserStats(address: Address): Promise<UserStatsData> {
       args: [address],
     })) as bigint;
 
-    // Get V2 portfolio and winnings
-    let v2Portfolio: any = null;
+    // Get V2 portfolio (multi-return tuple) — indices:
+    // 0: totalInvested (uint256)
+    // 1: totalWinnings (uint256)
+    // 2: unrealizedPnL (int256)
+    // 3: realizedPnL (int256)
+    // 4: tradeCount (uint256)
+    type V2PortfolioTuple = readonly [bigint, bigint, bigint, bigint, bigint];
+    let v2PortfolioTuple: V2PortfolioTuple | null = null;
     let v2TotalWinnings = 0n;
-
     try {
-      v2Portfolio = await publicClient.readContract({
+      v2PortfolioTuple = (await publicClient.readContract({
         address: V2contractAddress,
         abi: V2contractAbi,
         functionName: "userPortfolios",
         args: [address],
-      });
-
-      v2TotalWinnings = (await publicClient.readContract({
-        address: V2contractAddress,
-        abi: V2contractAbi,
-        functionName: "totalWinnings",
-        args: [address],
-      })) as bigint;
+      })) as V2PortfolioTuple;
+      v2TotalWinnings = v2PortfolioTuple[1];
     } catch (error) {
       console.log("V2 portfolio not accessible or user has no V2 activity");
     }
@@ -105,9 +104,7 @@ async function fetchUserStats(address: Address): Promise<UserStatsData> {
       args: [address],
     })) as bigint;
 
-    const v2TradeCount = v2Portfolio
-      ? Number((v2Portfolio as any).tradeCount || 0)
-      : 0;
+    const v2TradeCount = v2PortfolioTuple ? Number(v2PortfolioTuple[4]) : 0;
 
     if (voteCount === 0n && v2TradeCount === 0) {
       return {
@@ -119,13 +116,13 @@ async function fetchUserStats(address: Address): Promise<UserStatsData> {
         netWinnings: totalWinnings + v2TotalWinnings,
         v1Markets: 0,
         v2Markets: 0,
-        v2Portfolio: v2Portfolio
+        v2Portfolio: v2PortfolioTuple
           ? {
-              totalInvested: BigInt((v2Portfolio as any).totalInvested || 0),
-              totalWinnings: BigInt((v2Portfolio as any).totalWinnings || 0),
-              unrealizedPnL: BigInt((v2Portfolio as any).unrealizedPnL || 0),
-              realizedPnL: BigInt((v2Portfolio as any).realizedPnL || 0),
-              tradeCount: Number((v2Portfolio as any).tradeCount || 0),
+              totalInvested: v2PortfolioTuple[0],
+              totalWinnings: v2PortfolioTuple[1],
+              unrealizedPnL: v2PortfolioTuple[2],
+              realizedPnL: v2PortfolioTuple[3],
+              tradeCount: Number(v2PortfolioTuple[4]),
             }
           : undefined,
       };
@@ -201,9 +198,7 @@ async function fetchUserStats(address: Address): Promise<UserStatsData> {
 
     // For V2, estimate wins/losses from P&L (we could implement actual trade history later)
     const v2Markets = v2TradeCount > 0 ? Math.ceil(v2TradeCount / 2) : 0; // Estimate markets from trades
-    const v2RealizedPnL = v2Portfolio
-      ? BigInt((v2Portfolio as any).realizedPnL || 0)
-      : 0n;
+    const v2RealizedPnL = v2PortfolioTuple ? v2PortfolioTuple[3] : 0n;
     const v2Wins =
       v2RealizedPnL > 0n
         ? Math.ceil(v2Markets * 0.6)
@@ -215,9 +210,7 @@ async function fetchUserStats(address: Address): Promise<UserStatsData> {
     const winRate = totalVotes > 0 ? (totalWins / totalVotes) * 100 : 0;
 
     // Combine V1 and V2 investment amounts
-    const v2TotalInvested = v2Portfolio
-      ? BigInt((v2Portfolio as any).totalInvested || 0)
-      : 0n;
+    const v2TotalInvested = v2PortfolioTuple ? v2PortfolioTuple[0] : 0n;
     const combinedTotalInvested = totalInvested + v2TotalInvested;
     const combinedNetWinnings = totalWinnings + v2TotalWinnings;
 
@@ -230,13 +223,13 @@ async function fetchUserStats(address: Address): Promise<UserStatsData> {
       netWinnings: combinedNetWinnings,
       v1Markets,
       v2Markets,
-      v2Portfolio: v2Portfolio
+      v2Portfolio: v2PortfolioTuple
         ? {
-            totalInvested: BigInt((v2Portfolio as any).totalInvested || 0),
-            totalWinnings: BigInt((v2Portfolio as any).totalWinnings || 0),
-            unrealizedPnL: BigInt((v2Portfolio as any).unrealizedPnL || 0),
-            realizedPnL: BigInt((v2Portfolio as any).realizedPnL || 0),
-            tradeCount: Number((v2Portfolio as any).tradeCount || 0),
+            totalInvested: v2PortfolioTuple[0],
+            totalWinnings: v2PortfolioTuple[1],
+            unrealizedPnL: v2PortfolioTuple[2],
+            realizedPnL: v2PortfolioTuple[3],
+            tradeCount: Number(v2PortfolioTuple[4]),
           }
         : undefined,
     };

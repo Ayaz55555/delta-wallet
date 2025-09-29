@@ -11,6 +11,8 @@ import {
   V2contractAddress,
   V2contractAbi,
   publicClient,
+  PolicastViews,
+  PolicastViewsAbi,
 } from "@/constants/contract";
 
 export default function FreeMarketsPage() {
@@ -32,8 +34,8 @@ export default function FreeMarketsPage() {
           try {
             // Get market info to check market type
             const marketInfo = await publicClient.readContract({
-              address: V2contractAddress,
-              abi: V2contractAbi,
+              address: PolicastViews,
+              abi: PolicastViewsAbi,
               functionName: "getMarketInfo",
               args: [BigInt(i)],
             });

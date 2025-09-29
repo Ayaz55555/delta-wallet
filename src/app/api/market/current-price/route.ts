@@ -5,6 +5,8 @@ import {
   contractAbi,
   V2contractAddress,
   V2contractAbi,
+  PolicastViews,
+  PolicastViewsAbi,
 } from "@/constants/contract";
 
 // Cache for current prices
@@ -53,8 +55,8 @@ async function getCurrentMarketPrice(marketId: string) {
     try {
       // Read raw result and coerce to unknown first to avoid strict tuple/readonly conversion errors
       const raw = (await publicClient.readContract({
-        address: V2contractAddress,
-        abi: V2contractAbi,
+        address: PolicastViews,
+        abi: PolicastViewsAbi,
         functionName: "getMarketInfo",
         args: [marketIdBigInt],
       })) as unknown;

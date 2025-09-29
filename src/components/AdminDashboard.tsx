@@ -10,8 +10,7 @@ import { MarketResolver } from "./MarketResolver";
 import { AdminRoleManager } from "./AdminRoleManager";
 import { MarketValidationManager } from "./MarketValidationManager";
 import { MarketInvalidationManager } from "./MarketInvalidationManager";
-// Deprecated: import { AdminLiquidityManager } from "./AdminLiquidityManager"; // OLD AMM - DEPRECATED
-// import { BatchDistributionManager } from "./BatchDistributionManager";//
+//
 import { V3AdminDashboard } from "./V3AdminDashboard";
 import { AdminWithdrawalsSection } from "./AdminWithdrawalsSection";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -40,6 +39,24 @@ export function AdminDashboard() {
     isOwner,
   } = useUserRoles();
   const [activeTab, setActiveTab] = useState("create");
+
+  // Deprecation notice
+  const DeprecationBanner = () => (
+    <Card className="mb-4 border-orange-200 bg-orange-50">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-orange-600" />
+          <p className="text-orange-800">
+            This admin dashboard is deprecated. Please use the{" "}
+            <a href="/admin" className="underline font-medium">
+              Modern Admin Dashboard
+            </a>{" "}
+            for the latest features and improvements.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   // Get some basic stats
   const { data: marketCount } = useReadContract({
@@ -87,6 +104,9 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-4 md:space-y-6 mb-16 md:mb-20">
+      {/* Deprecation Banner */}
+      <DeprecationBanner />
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0">
         <div>

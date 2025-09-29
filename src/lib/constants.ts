@@ -145,3 +145,42 @@ export const SIGNED_KEY_REQUEST_TYPE = [
   { name: "key", type: "bytes" },
   { name: "deadline", type: "uint256" },
 ];
+
+// --- Market Constants ---
+export const MIN_INITIAL_LIQUIDITY = 4000;
+
+export enum MarketCategory {
+  POLITICS = 0,
+  SPORTS = 1,
+  ENTERTAINMENT = 2,
+  TECHNOLOGY = 3,
+  ECONOMICS = 4,
+  SCIENCE = 5,
+  WEATHER = 6,
+  OTHER = 7,
+}
+
+export enum MarketType {
+  PAID = 0,
+  FREE_ENTRY = 1,
+}
+
+export const CATEGORY_LABELS = {
+  [MarketCategory.POLITICS]: "Politics",
+  [MarketCategory.SPORTS]: "Sports",
+  [MarketCategory.ENTERTAINMENT]: "Entertainment",
+  [MarketCategory.TECHNOLOGY]: "Technology",
+  [MarketCategory.ECONOMICS]: "Economics",
+  [MarketCategory.SCIENCE]: "Science",
+  [MarketCategory.WEATHER]: "Weather",
+  [MarketCategory.OTHER]: "Other",
+};
+
+export const MARKET_TYPE_LABELS = {
+  [MarketType.PAID]: "Paid Market",
+  [MarketType.FREE_ENTRY]: "Free Entry Market",
+};
+
+// Role hash constants (matching Solidity keccak256)
+export const QUESTION_CREATOR_ROLE =
+  "0xef485be696bbc0c91ad541bbd553ffb5bd0e18dac30ba76e992dda23cb807a8a"; // keccak256("QUESTION_CREATOR_ROLE")

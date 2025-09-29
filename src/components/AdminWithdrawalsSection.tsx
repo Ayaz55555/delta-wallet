@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect, useCallback } from "react";
 import {
   useAccount,
@@ -11,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Coins, Trophy, DollarSign, Wallet } from "lucide-react";
-import { toast } from "sonner";
+import { useToast } from "@/components/ui/use-toast";
+import { formatPrice } from "@/lib/utils";
 
 interface AdminWithdrawal {
   marketId: number;
@@ -35,6 +34,7 @@ interface Totals {
 
 export function AdminWithdrawalsSection() {
   const { address, isConnected } = useAccount();
+  const { toast } = useToast();
   const [withdrawals, setWithdrawals] = useState<GroupedWithdrawals>({
     adminLiquidity: [],
     prizePool: [],
@@ -50,7 +50,7 @@ export function AdminWithdrawalsSection() {
   const [error, setError] = useState<string | null>(null);
 
   // Contract write for withdrawals
-  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { writeContractAsync, data: hash, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash,
   });
@@ -129,7 +129,11 @@ export function AdminWithdrawalsSection() {
             : `Server error (${response.status}). Please try again.`;
 
         setError(errorMessage);
-        toast.error(errorMessage);
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
 
         // Reset to empty state
         setWithdrawals({ adminLiquidity: [], prizePool: [], lpRewards: [] });
@@ -160,7 +164,11 @@ export function AdminWithdrawalsSection() {
       }
 
       setError(errorMessage);
-      toast.error(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
 
       // Reset to empty state
       setWithdrawals({ adminLiquidity: [], prizePool: [], lpRewards: [] });
@@ -182,22 +190,14 @@ export function AdminWithdrawalsSection() {
     }
   }, [isConnected, address, fetchAdminWithdrawals]);
 
-  // Handle successful transaction
-  useEffect(() => {
-    if (isSuccess) {
-      toast.success("Withdrawal completed successfully!");
-      // Refresh the data after successful withdrawal
-      fetchAdminWithdrawals();
-    }
-  }, [isSuccess, fetchAdminWithdrawals]);
-
   // Handle individual withdrawal
-  const handleWithdrawal = async (marketId: number, type: string) => {
+  const handleWithdrawal = async (
+    marketId: number,
+    type: string
+  ): Promise<void> => {
     if (!address) return;
 
     try {
-      // functionName may not exist in the in-repo ABI typings (ABI differs by contract version).
-      // Use `any` here to avoid TypeScript literal-union errors from the large `as const` ABI.
       let functionName: any;
       switch (type) {
         case "adminLiquidity":
@@ -213,16 +213,33 @@ export function AdminWithdrawalsSection() {
           throw new Error("Unknown withdrawal type");
       }
 
-      // Cast the call to `any` to avoid the ABI-derived `functionName` union type mismatch.
-      (writeContract as any)({
+      // Submit transaction and wait for confirmation
+      toast({
+        title: "Info",
+        description: "Submitting withdrawal transaction...",
+      });
+      await writeContractAsync({
         address: V2contractAddress,
         abi: V2contractAbi,
         functionName: functionName as any,
         args: [BigInt(marketId)],
       });
+
+      // The writeContractAsync already waits for confirmation internally
+      toast({
+        title: "Success",
+        description: "Withdrawal completed successfully!",
+      });
+      // Refresh data after successful withdrawal
+      fetchAdminWithdrawals();
     } catch (error) {
-      console.error("Error initiating withdrawal:", error);
-      toast.error("Failed to initiate withdrawal");
+      console.error("Error in withdrawal:", error);
+      toast({
+        title: "Error",
+        description: "Withdrawal failed",
+        variant: "destructive",
+      });
+      throw error; // Re-throw for batch handling
     }
   }; // Handle batch withdrawal for a type
   const handleBatchWithdrawal = async (type: keyof GroupedWithdrawals) => {
@@ -237,7 +254,11 @@ export function AdminWithdrawalsSection() {
       }
     } catch (error) {
       console.error("Error in batch withdrawal:", error);
-      toast.error("Batch withdrawal failed");
+      toast({
+        title: "Error",
+        description: "Batch withdrawal failed",
+        variant: "destructive",
+      });
     }
   };
 
@@ -256,10 +277,6 @@ export function AdminWithdrawalsSection() {
       </Card>
     );
   }
-
-  const formatAmount = (amount: bigint) => {
-    return (Number(amount) / 1e18).toFixed(4);
-  };
 
   const totalWithdrawals =
     withdrawals.adminLiquidity.length +
@@ -380,7 +397,7 @@ export function AdminWithdrawalsSection() {
                       Total Available
                     </p>
                     <p className="text-2xl font-bold text-green-900">
-                      {formatAmount(totals.total)} $Buster
+                      {formatPrice(totals.total)} $Buster
                     </p>
                   </div>
                   <Badge
@@ -462,10 +479,6 @@ function WithdrawalSection({
   isPending: boolean;
   isConfirming: boolean;
 }) {
-  const formatAmount = (amount: bigint) => {
-    return (Number(amount) / 1e18).toFixed(4);
-  };
-
   return (
     <div className="border border-gray-200 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
@@ -476,7 +489,7 @@ function WithdrawalSection({
         </div>
         <div className="text-right">
           <p className="text-sm text-gray-600">
-            Total: {formatAmount(total)} $Buster
+            Total: {formatPrice(total)} $Buster
           </p>
           {withdrawals.length > 1 && (
             <Button
@@ -504,7 +517,7 @@ function WithdrawalSection({
               </p>
               <p className="text-sm text-gray-600">{withdrawal.description}</p>
               <p className="text-sm font-medium text-green-600">
-                {formatAmount(withdrawal.amount)} $Buster
+                {formatPrice(withdrawal.amount)} $Buster
               </p>
             </div>
             <Button

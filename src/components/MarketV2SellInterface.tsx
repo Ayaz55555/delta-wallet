@@ -73,8 +73,8 @@ function formatShares(shares: bigint): string {
 // Convert internal probability to token price (for fallback scenarios)
 function probabilityToTokenPrice(probability: bigint): bigint {
   // Convert internal probability (0-1 range scaled by 1e18) to token price (0-100 range)
-  const PAYOUT_PER_SHARE = 100n * BigInt(1e18); // 100 tokens per share
-  return (probability * PAYOUT_PER_SHARE) / BigInt(1e18);
+  const PAYOUT_PER_SHARE = 100n * 10n ** 18n; // 100 tokens per share
+  return (probability * PAYOUT_PER_SHARE) / 1000000000000000000n;
 }
 
 export function MarketV2SellInterface({
@@ -115,6 +115,22 @@ export function MarketV2SellInterface({
     null
   );
 
+  // Slippage config (basis points)
+  const SELL_SLIPPAGE_BPS = 50; // 0.5%
+
+  // Shares utils
+  function sharesToWei(amount: string): bigint {
+    if (!amount) return 0n;
+    const [i, f = ""] = amount.split(".");
+    const frac = (f + "0".repeat(18)).slice(0, 18);
+    return BigInt((i || "0") + frac);
+  }
+
+  function withNegBuffer(x: bigint, bps: number = SELL_SLIPPAGE_BPS): bigint {
+    const denom = 10000n;
+    return (x * (denom - BigInt(bps))) / denom;
+  }
+
   // Token information//
   const { data: tokenSymbol } = useReadContract({
     address: tokenAddress,
@@ -148,8 +164,35 @@ export function MarketV2SellInterface({
     query: { enabled: selectedOptionId !== null },
   });
 
+  // Compute quantity in 1e18 shares
+  const quantityInShares = useMemo(() => sharesToWei(sellAmount), [sellAmount]);
+
+  // On-chain sell quote (rawRefund, fee, netRefund, avgPricePerShare)
+  const { data: sellQuote } = useReadContract({
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
+    functionName: "quoteSell",
+    args:
+      selectedOptionId === null || quantityInShares <= 0n
+        ? undefined
+        : [BigInt(marketId), BigInt(selectedOptionId), quantityInShares],
+    query: {
+      enabled: selectedOptionId !== null && quantityInShares > 0n,
+      refetchInterval: 2000,
+    },
+  });
+
+  const rawRefundFromQuote = (sellQuote?.[0] ?? 0n) as bigint;
+  const feeFromQuote = (sellQuote?.[1] ?? 0n) as bigint;
+  const netRefundFromQuote = (sellQuote?.[2] ?? 0n) as bigint;
+  const avgPricePerShareFromQuote = (sellQuote?.[3] ?? 0n) as bigint;
+
   // Calculate estimated revenue using token prices from PolicastViews
   const estimatedRevenue = useMemo(() => {
+    // Prefer exact on-chain quote if available
+    if (netRefundFromQuote > 0n) return netRefundFromQuote;
+
+    // Fallback to simple linear estimate if quote not ready
     if (
       !tokenPrices ||
       selectedOptionId === null ||
@@ -157,23 +200,16 @@ export function MarketV2SellInterface({
       parseFloat(sellAmount) <= 0
     )
       return 0n;
-
-    const tokenPrice = (tokenPrices as readonly bigint[])[selectedOptionId]; // Direct token price from contract
-    const quantity = BigInt(
-      Math.floor(parseFloat(sellAmount) * Math.pow(10, 18))
-    );
-
-    // Calculate revenue: tokenPrice * quantity / 1e18
-    const rawRefund = (tokenPrice * quantity) / BigInt(1e18);
-
-    // Subtract platform fee (2%)
+    const tokenPrice = (tokenPrices as readonly bigint[])[selectedOptionId];
+    const quantity = sharesToWei(sellAmount);
+    const rawRefund = (tokenPrice * quantity) / 1000000000000000000n;
     const fee = (rawRefund * 200n) / 10000n;
     return rawRefund - fee;
-  }, [tokenPrices, selectedOptionId, sellAmount]);
+  }, [netRefundFromQuote, tokenPrices, selectedOptionId, sellAmount]);
 
-  // Calculate minimum price with slippage protection (5% slippage tolerance)
-  const calculateMinPrice = useCallback((currentPrice: bigint): bigint => {
-    return (currentPrice * 95n) / 100n; // 5% slippage protection
+  // Calculate minimum price with slippage protection (uses SELL_SLIPPAGE_BPS)
+  const calculateMinPrice = useCallback((pricePerShare: bigint): bigint => {
+    return withNegBuffer(pricePerShare, SELL_SLIPPAGE_BPS);
   }, []);
 
   // Handle sell transaction
@@ -191,14 +227,21 @@ export function MarketV2SellInterface({
       setIsProcessing(true);
       setSellingStep("processing");
 
-      const sellAmountBigInt = BigInt(
-        Math.floor(parseFloat(sellAmount) * Math.pow(10, 18))
-      );
+      const sellAmountBigInt = quantityInShares;
 
-      // Calculate minimum price per share from estimated revenue with slippage protection
+      // Use on-chain avg price per share when available
       const avgPricePerShare =
-        ((estimatedRevenue as bigint) * BigInt(1e18)) / sellAmountBigInt;
+        avgPricePerShareFromQuote > 0n
+          ? avgPricePerShareFromQuote
+          : sellAmountBigInt > 0n
+          ? ((estimatedRevenue as bigint) * 1000000000000000000n) /
+            sellAmountBigInt
+          : 0n;
       const minPricePerShare = calculateMinPrice(avgPricePerShare);
+      const minTotalProceeds =
+        netRefundFromQuote > 0n
+          ? withNegBuffer(netRefundFromQuote)
+          : withNegBuffer(estimatedRevenue as bigint);
 
       console.log("=== V2 SELL TRANSACTION ===");
       console.log("Market ID:", marketId);
@@ -217,7 +260,7 @@ export function MarketV2SellInterface({
           BigInt(selectedOptionId),
           sellAmountBigInt,
           minPricePerShare,
-          estimatedRevenue, // _minTotalProceeds
+          minTotalProceeds, // _minTotalProceeds (net proceeds with slippage buffer)
         ],
       });
     } catch (err) {
@@ -233,6 +276,7 @@ export function MarketV2SellInterface({
     sellAmount,
     tokenDecimals,
     estimatedRevenue,
+    sellQuote,
     calculateMinPrice,
     marketId,
     writeContractAsync,
@@ -390,8 +434,10 @@ export function MarketV2SellInterface({
                           Current Price
                         </div>
                         <div className="font-medium text-sm md:text-base">
-                          {formatPrice(option.currentPrice)}{" "}
-                          {tokenSymbol || "TOKENS"}
+                          {(
+                            Number(formatPrice(option.currentPrice)) * 100
+                          ).toFixed(1)}
+                          Buster
                         </div>
                       </div>
                     </div>
@@ -412,8 +458,8 @@ export function MarketV2SellInterface({
                 </div>
                 <div>Available: {formatShares(userSharesForOption)} shares</div>
                 <div>
-                  Current Price: {formatPrice(currentPrice)}{" "}
-                  {tokenSymbol || "TOKENS"}
+                  Current Price:{" "}
+                  {(Number(formatPrice(currentPrice)) * 100).toFixed(1)}%
                 </div>
               </div>
             </div>
@@ -520,24 +566,17 @@ export function MarketV2SellInterface({
                 <div className="flex justify-between">
                   <span>Current Price:</span>
                   <span className="font-medium">
-                    {formatPrice(currentPrice)} {tokenSymbol}
+                    {(Number(formatPrice(currentPrice)) * 100).toFixed(1)}%
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Min Price (5% slippage):</span>
+                  <span>Min Price ({SELL_SLIPPAGE_BPS / 100}% slippage):</span>
                   <span className="font-medium">
-                    {estimatedRevenue && sellAmount
-                      ? formatPrice(
-                          ((((estimatedRevenue as bigint) * BigInt(1e18)) /
-                            BigInt(
-                              Math.floor(
-                                parseFloat(sellAmount) * Math.pow(10, 18)
-                              )
-                            )) *
-                            95n) /
-                            100n
-                        )
-                      : formatPrice(calculateMinPrice(currentPrice))}{" "}
+                    {formatPrice(
+                      avgPricePerShareFromQuote > 0n
+                        ? calculateMinPrice(avgPricePerShareFromQuote)
+                        : calculateMinPrice(currentPrice)
+                    )}{" "}
                     {tokenSymbol}
                   </span>
                 </div>
@@ -617,3 +656,4 @@ export function MarketV2SellInterface({
     </div>
   );
 }
+//new

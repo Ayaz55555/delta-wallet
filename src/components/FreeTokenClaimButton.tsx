@@ -18,12 +18,21 @@ interface FreeTokenClaimButtonProps {
   marketId: number;
   onClaimComplete?: () => void;
   className?: string;
+  /**
+   * If true, component will render a disabled placeholder prompting the user to connect
+   * instead of returning null when no wallet is connected.
+   */
+  showWhenDisconnected?: boolean;
+  /** Optional pre-derived marketType to avoid an extra read (0=paid,1=free) */
+  marketTypeOverride?: number;
 }
 
 export function FreeTokenClaimButton({
   marketId,
   onClaimComplete,
   className,
+  showWhenDisconnected = true,
+  marketTypeOverride,
 }: FreeTokenClaimButtonProps) {
   const { address } = useAccount();
   const { toast } = useToast();
@@ -57,7 +66,14 @@ export function FreeTokenClaimButton({
     },
   });
 
-  // Get free market info (slots remaining, tokens per user, etc.)//
+  // Fetch free market info (expanded tuple per ABI: 6 values)
+  // getFreeMarketInfo returns:
+  // [0] maxFreeParticipants (uint256)
+  // [1] tokensPerParticipant (uint256)
+  // [2] currentFreeParticipants (uint256)
+  // [3] totalPrizePool (uint256)
+  // [4] remainingPrizePool (uint256)
+  // [5] isActive (bool)
   const { data: freeMarketInfo } = (useReadContract as any)({
     address: V2contractAddress,
     abi: V2contractAbi,
@@ -68,37 +84,83 @@ export function FreeTokenClaimButton({
     },
   });
 
-  // Check if this is actually a free market
-  const { data: marketInfo } = (useReadContract as any)({
-    address: V2contractAddress,
-    abi: V2contractAbi,
-    functionName: "getMarketInfo",
-    args: [BigInt(marketId)],
-    query: {
-      refetchInterval: 30000, // Check every 30 seconds for market type
-    },
-  });
+  // Fetch basic info to reliably determine marketType (avoid brittle indexing of legacy getMarketInfo)
+  const skipBasicRead = typeof marketTypeOverride === "number";
+  const { data: marketBasic } = (useReadContract as any)(
+    skipBasicRead
+      ? { enabled: false }
+      : {
+          address: V2contractAddress,
+          abi: V2contractAbi,
+          functionName: "getMarketBasicInfo",
+          args: [BigInt(marketId)],
+          query: {
+            refetchInterval: 30000,
+          },
+        }
+  );
 
   const isLoading = isWritePending || isConfirming;
   const _claimStatus = claimStatus as [boolean, bigint] | undefined;
   const hasUserClaimed = _claimStatus ? _claimStatus[0] : false;
   const tokensReceived = _claimStatus ? _claimStatus[1] : 0n;
 
-  // Extract free market info
-  const _freeMarketInfo = freeMarketInfo as
-    | [bigint, bigint, bigint]
+  // Parse free market info with new shape
+  type FreeMarketInfoTuple =
+    | [
+        bigint, // maxFreeParticipants
+        bigint, // tokensPerParticipant
+        bigint, // currentFreeParticipants
+        bigint, // totalPrizePool
+        bigint, // remainingPrizePool
+        boolean // isActive
+      ]
     | undefined;
+  const _freeMarketInfo = freeMarketInfo as FreeMarketInfoTuple;
   const maxParticipants = _freeMarketInfo ? _freeMarketInfo[0] : 0n;
   const tokensPerParticipant = _freeMarketInfo ? _freeMarketInfo[1] : 0n;
   const currentParticipants = _freeMarketInfo ? _freeMarketInfo[2] : 0n;
+  const totalPrizePool = _freeMarketInfo ? _freeMarketInfo[3] : 0n;
+  const remainingPrizePool = _freeMarketInfo ? _freeMarketInfo[4] : 0n;
+  const freeIsActive = _freeMarketInfo ? _freeMarketInfo[5] : false;
   const slotsRemaining = maxParticipants - currentParticipants;
 
-  // Check if market is free entry (marketType = 1)
-  const isFreeMarket =
-    marketInfo &&
-    marketInfo.length > 7 &&
-    typeof marketInfo[7] === "number" &&
-    marketInfo[7] === 1;
+  // getMarketBasicInfo returns tuple: (question, description, endTime, category, optionCount, resolved, marketType, invalidated, totalVolume)
+  const _basic = marketBasic as
+    | [string, string, bigint, number, bigint, boolean, number, boolean, bigint]
+    | undefined;
+  const marketType =
+    typeof marketTypeOverride === "number"
+      ? marketTypeOverride
+      : _basic
+      ? _basic[6]
+      : undefined;
+  const isFreeMarket = marketType === 1;
+
+  // Debug visibility reasoning
+  useEffect(() => {
+    console.debug("[FreeTokenClaimButton] state", {
+      marketId,
+      addressPresent: !!address,
+      marketType,
+      isFreeMarket,
+      hasUserClaimed,
+      freeIsActive,
+      slotsRemaining: slotsRemaining.toString(),
+      maxParticipants: maxParticipants.toString(),
+      currentParticipants: currentParticipants.toString(),
+    });
+  }, [
+    marketId,
+    address,
+    marketType,
+    isFreeMarket,
+    hasUserClaimed,
+    freeIsActive,
+    slotsRemaining,
+    maxParticipants,
+    currentParticipants,
+  ]);
 
   const handleClaimFreeTokens = async () => {
     if (!address) {
@@ -210,20 +272,64 @@ export function FreeTokenClaimButton({
     setHasClaimed(hasUserClaimed);
   }, [hasUserClaimed]);
 
-  // Don't show if not connected, not a free market, or already claimed
-  if (!address || !isFreeMarket || hasUserClaimed) {
-    return null;
+  // Base gating: Only skip entirely if not free market
+  if (!isFreeMarket) return null;
+
+  // If disconnected and we want to show placeholder
+  if (!address && showWhenDisconnected) {
+    return (
+      <div
+        className={`p-3 border rounded-lg bg-green-50 dark:bg-green-900/10 ${
+          className || ""
+        }`}
+      >
+        <div className="flex items-center gap-2 mb-1 text-green-700 dark:text-green-300">
+          <Gift className="h-4 w-4" />
+          <span className="text-sm font-medium">Free Entry Market</span>
+        </div>
+        <p className="text-xs text-green-700 dark:text-green-400 mb-2">
+          Connect your wallet to claim free tokens.
+        </p>
+        <Button disabled variant="outline" className="w-full h-8 text-xs">
+          Connect wallet to claim
+        </Button>
+      </div>
+    );
+  }
+
+  // If still no address and not showing placeholder simply hide
+  if (!address) return null;
+
+  // Hide once user claimed
+  if (hasUserClaimed) return null;
+
+  // If market free entry inactive
+  if (!freeIsActive) {
+    return (
+      <div
+        className={`p-3 border rounded-lg bg-yellow-50 dark:bg-yellow-900/10 text-xs ${
+          className || ""
+        }`}
+      >
+        <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
+          <Gift className="h-4 w-4" />
+          Free token claim not active
+        </div>
+      </div>
+    );
   }
 
   // Don't show if no slots remaining
   if (slotsRemaining <= 0n) {
     return (
-      <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
-        <div className="flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400">
+      <div
+        className={`text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border ${
+          className || ""
+        }`}
+      >
+        <div className="flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400 text-xs">
           <Users className="h-4 w-4" />
-          <span className="text-sm">
-            All free token slots have been claimed
-          </span>
+          <span>All free token slots have been claimed</span>
         </div>
       </div>
     );

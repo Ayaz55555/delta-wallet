@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, http, isAddress } from "viem";
 import { base } from "viem/chains";
 import {
   V2contractAddress,
@@ -7,6 +7,32 @@ import {
   PolicastViews,
   PolicastViewsAbi,
 } from "@/constants/contract";
+import { MarketBasicInfoTuple } from "@/types/market";
+
+// Typed wrappers to reduce any-casts; generic return typing follows call sites
+async function readCore<TReturn>(
+  functionName: string,
+  args: readonly any[] = []
+): Promise<TReturn> {
+  return (await publicClient.readContract({
+    address: V2contractAddress,
+    abi: V2contractAbi as any,
+    functionName: functionName as any,
+    args: args as any,
+  })) as unknown as TReturn;
+}
+
+async function readView<TReturn>(
+  functionName: string,
+  args: readonly any[] = []
+): Promise<TReturn> {
+  return (await publicClient.readContract({
+    address: PolicastViews,
+    abi: PolicastViewsAbi as any,
+    functionName: functionName as any,
+    args: args as any,
+  })) as unknown as TReturn;
+}
 
 const publicClient = createPublicClient({
   chain: base,
@@ -34,10 +60,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!isAddress(userAddress)) {
+      return NextResponse.json(
+        { error: "Invalid user address format" },
+        { status: 400 }
+      );
+    }
+
     console.log("Auto-discovering admin withdrawals for user:", userAddress);
 
-    // Discover all admin withdrawals available to user
-    const adminWithdrawals = await discoverAdminWithdrawals(userAddress);
+    // Discover all admin withdrawals available to user with timeout
+    const timeoutMs = 30000; // 30 seconds
+    const discoveryPromise = discoverAdminWithdrawals(userAddress);
+    const timeoutPromise = new Promise<AdminWithdrawal[]>((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Discovery timeout after 30 seconds")),
+        timeoutMs
+      )
+    );
+    const adminWithdrawals = await Promise.race([
+      discoveryPromise,
+      timeoutPromise,
+    ]);
 
     console.log(`Found ${adminWithdrawals.length} admin withdrawals available`);
 
@@ -114,13 +158,7 @@ async function discoverAdminWithdrawals(
 
   try {
     // First get the actual market count from the contract
-    const marketCount = (await (publicClient.readContract as any)({
-      address: V2contractAddress,
-      abi: V2contractAbi,
-      // prefer the canonical "marketCount" name from the V2 ABI; cast to any to avoid strict literal-union errors
-      functionName: "marketCount",
-      args: [],
-    })) as bigint;
+    const marketCount = await readCore<bigint>("marketCount");
 
     const maxMarketId = Number(marketCount);
     console.log(
@@ -132,26 +170,33 @@ async function discoverAdminWithdrawals(
       return [];
     }
 
-    // Check markets in batches to avoid rate limits
+    // Prepare batch promises
     const batchSize = 10;
+    const batchPromises: (() => Promise<AdminWithdrawal[]>)[] = [];
 
     for (let startId = 0; startId < maxMarketId; startId += batchSize) {
       const endId = Math.min(startId + batchSize, maxMarketId);
+      batchPromises.push(() =>
+        checkMarketBatchForAdmin(userAddress, startId, endId)
+      );
+    }
 
-      try {
-        const batchWithdrawals = await checkMarketBatchForAdmin(
-          userAddress,
-          startId,
-          endId
-        );
-        withdrawals.push(...batchWithdrawals);
+    // Process batches with concurrency limit
+    const concurrencyLimit = 3;
+    for (let i = 0; i < batchPromises.length; i += concurrencyLimit) {
+      const chunk = batchPromises.slice(i, i + concurrencyLimit);
+      const results = await Promise.allSettled(chunk.map((fn) => fn()));
 
-        // Increase delay to avoid rate limits
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      } catch (error) {
-        console.error(`Error checking markets ${startId}-${endId}:`, error);
-        // Continue with next batch
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          withdrawals.push(...result.value);
+        } else {
+          console.error("Batch failed:", result.reason);
+        }
       }
+
+      // Small delay between chunks to avoid overwhelming the RPC
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
     console.log(
@@ -175,12 +220,9 @@ async function checkMarketBatchForAdmin(
   for (let marketId = startId; marketId < endId; marketId++) {
     try {
       // Get market info to check market status
-      const marketInfo = (await (publicClient.readContract as any)({
-        address: V2contractAddress,
-        abi: V2contractAbi,
-        functionName: "getMarketInfo",
-        args: [BigInt(marketId)],
-      })) as unknown;
+      const marketInfo = await readView<readonly any[]>("getMarketInfo", [
+        BigInt(marketId),
+      ]);
 
       if (!marketInfo) {
         console.log(`Market ${marketId} returned no info, skipping...`);
@@ -188,25 +230,25 @@ async function checkMarketBatchForAdmin(
       }
 
       // Get market creator from Views contract
-      const creator = (await (publicClient.readContract as any)({
-        address: PolicastViews,
-        abi: PolicastViewsAbi, // Use the correct Views contract ABI
-        functionName: "getMarketCreator",
-        args: [BigInt(marketId)],
-      })) as string;
+      const creator = await readView<string>("getMarketCreator", [
+        BigInt(marketId),
+      ]);
 
-      // Parse the market info tuple (V3 contract structure)
-      const mi = marketInfo as readonly any[];
-      const question = String(mi[0] ?? "");
-      const description = String(mi[1] ?? "");
-      const endTime = BigInt(mi[2] ?? 0n);
-      const category = Number(mi[3] ?? 0);
-      const optionCount = BigInt(mi[4] ?? 0n);
-      const resolved = Boolean(mi[5]);
-      const resolvedOutcome = Boolean(mi[6]); // This is different from disputed
-      const marketType = Number(mi[7] ?? 0);
-      const invalidated = Boolean(mi[8]);
-      const totalVolume = BigInt(mi[9] ?? 0n);
+      // Normalize the market info tuple to our internal MarketBasicInfoTuple shape.
+      // On-chain getMarketInfo returns (title, description, endTime, category, optionCount, resolved, resolvedOutcome, marketType, invalidated, totalVolume)
+      // Our MarketBasicInfoTuple expects (question, description, endTime, category, optionCount, resolved, marketType, invalidated, totalVolume)
+      // We discard the resolvedOutcome flag here (handled separately when/if needed later) to prevent index drift elsewhere.
+      const raw = marketInfo as readonly any[];
+      const question = String(raw[0] ?? "");
+      const description = String(raw[1] ?? "");
+      const endTime = BigInt(raw[2] ?? 0n);
+      const category = Number(raw[3] ?? 0);
+      const optionCount = BigInt(raw[4] ?? 0n);
+      const resolved = Boolean(raw[5]);
+      const _resolvedOutcome = Boolean(raw[6]);
+      const marketType = Number(raw[7] ?? 0); // enum PolicastMarketV3.MarketType
+      const invalidated = Boolean(raw[8]);
+      const totalVolume = BigInt(raw[9] ?? 0n);
 
       // Check if user is the market creator
       const isCreator = creator.toLowerCase() === userAddress.toLowerCase();
@@ -217,7 +259,7 @@ async function checkMarketBatchForAdmin(
         userAddress,
         isCreator,
         resolved,
-        resolvedOutcome,
+        _resolvedOutcome,
         invalidated,
         marketType,
         totalVolume: totalVolume.toString(),
@@ -227,12 +269,10 @@ async function checkMarketBatchForAdmin(
         // 1. Check for admin liquidity withdrawal
         // We need to get market financials to check admin liquidity status
         try {
-          const marketFinancials = (await (publicClient.readContract as any)({
-            address: PolicastViews, // Use Views contract for financials too
-            abi: PolicastViewsAbi, // Use Views ABI
-            functionName: "getMarketFinancials",
-            args: [BigInt(marketId)],
-          })) as unknown;
+          const marketFinancials = await readView<readonly any[]>(
+            "getMarketFinancials",
+            [BigInt(marketId)]
+          );
 
           if (marketFinancials) {
             const mf = marketFinancials as readonly any[];
@@ -247,7 +287,7 @@ async function checkMarketBatchForAdmin(
               platformFeesCollected: platformFeesCollected.toString(),
               adminLiquidityClaimed,
               resolved,
-              resolvedOutcome,
+              _resolvedOutcome,
               invalidated,
               isInvalidatedMarket: invalidated,
               marketType,
@@ -308,7 +348,8 @@ async function checkMarketBatchForAdmin(
         }
 
         // 2. Check for unused prize pool withdrawal (free markets only)
-        const isFreeMarket = await checkIfFreeMarket(marketId);
+        // Use marketType from tuple instead of heuristic contract call (0 = paid? 1 = free entry)
+        const isFreeMarket = marketType === 1;
         if (isFreeMarket && resolved) {
           try {
             const unusedPrizePool = await getUnusedPrizePool(marketId);
@@ -361,63 +402,42 @@ async function checkMarketBatchForAdmin(
   return withdrawals;
 }
 
-// Check if market is a free market
-async function checkIfFreeMarket(marketId: number): Promise<boolean> {
-  try {
-    const freeMarketInfo = await (publicClient.readContract as any)({
-      address: V2contractAddress,
-      abi: V2contractAbi,
-      functionName: "getFreeMarketInfo",
-      args: [BigInt(marketId)],
-    });
-
-    // If we get data back, it's a free market
-    return !!freeMarketInfo;
-  } catch (error) {
-    // If call fails, it's not a free market
-    return false;
-  }
-}
-
 // Get unused prize pool for a free market
 async function getUnusedPrizePool(marketId: number): Promise<bigint> {
   try {
     // Get free market info to understand the prize pool configuration
-    const freeMarketInfo = (await (publicClient.readContract as any)({
-      address: V2contractAddress,
-      abi: V2contractAbi,
-      functionName: "getFreeMarketInfo",
-      args: [BigInt(marketId)],
-    })) as unknown;
+    const freeMarketInfo = await readCore<readonly any[]>("getFreeMarketInfo", [
+      BigInt(marketId),
+    ]);
 
     if (!freeMarketInfo) {
       return 0n;
     }
 
     const fm = freeMarketInfo as readonly any[];
+    // getFreeMarketInfo returns (maxFreeParticipants, tokensPerParticipant, currentFreeParticipants, totalPrizePool, remainingPrizePool, isActive)
     const maxParticipants = BigInt(fm[0] ?? 0n);
     const tokensPerParticipant = BigInt(fm[1] ?? 0n);
     const currentParticipants = BigInt(fm[2] ?? 0n);
-    const totalPrizePool = BigInt(fm[3] ?? 0n);
-    // prizePoolWithdrawn may be boolean or bigint depending on ABI shape
-    const prizePoolWithdrawn = Boolean(fm[4]);
+    const _totalPrizePool = BigInt(fm[3] ?? 0n);
+    const remainingPrizePool = BigInt(fm[4] ?? 0n);
+    const isActive = Boolean(fm[5]);
 
-    // If prize pool already withdrawn, no unused amount
-    if (prizePoolWithdrawn) {
+    // If market still active, we do not allow unused prize pool withdrawal yet
+    if (isActive) {
       return 0n;
     }
 
-    // Calculate unused prize pool based on participation
-    const maxPossiblePrizePool = maxParticipants * tokensPerParticipant;
-    const actualPrizePool = currentParticipants * tokensPerParticipant;
-    const unusedPrizePool = maxPossiblePrizePool - actualPrizePool;
+    // Unused prize pool is simply the remainingPrizePool reported by contract (already accounts for participants used)
+    const unusedPrizePool = remainingPrizePool;
 
     console.debug(`Market ${marketId} prize pool analysis:`, {
       maxParticipants: maxParticipants.toString(),
       tokensPerParticipant: tokensPerParticipant.toString(),
       currentParticipants: currentParticipants.toString(),
-      maxPossiblePrizePool: maxPossiblePrizePool.toString(),
-      actualPrizePool: actualPrizePool.toString(),
+      totalPrizePool: _totalPrizePool.toString(),
+      remainingPrizePool: remainingPrizePool.toString(),
+      isActive,
       unusedPrizePool: unusedPrizePool.toString(),
     });
 

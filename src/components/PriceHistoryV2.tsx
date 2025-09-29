@@ -9,6 +9,8 @@ import {
   V2contractAbi,
   tokenAddress as defaultTokenAddress,
   tokenAbi as defaultTokenAbi,
+  PolicastViews,
+  PolicastViewsAbi,
 } from "@/constants/contract";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -181,8 +183,8 @@ export function PriceHistoryV2() {
         // Limit for performance
         try {
           const marketInfo = (await publicClient.readContract({
-            address: V2contractAddress,
-            abi: V2contractAbi,
+            address: PolicastViews,
+            abi: PolicastViewsAbi,
             functionName: "getMarketInfo",
             args: [BigInt(i)],
           })) as unknown as readonly any[];
@@ -259,8 +261,8 @@ export function PriceHistoryV2() {
 
       // Get market info
       const marketInfo = (await publicClient.readContract({
-        address: V2contractAddress,
-        abi: V2contractAbi,
+        address: PolicastViews,
+        abi: PolicastViewsAbi,
         functionName: "getMarketInfo",
         args: [BigInt(marketId)],
       })) as unknown as readonly any[];

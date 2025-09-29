@@ -12,6 +12,8 @@ import {
   V2contractAbi,
   tokenAddress as defaultTokenAddress,
   tokenAbi as defaultTokenAbi,
+  PolicastViews,
+  PolicastViewsAbi,
 } from "@/constants/contract";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -119,18 +121,12 @@ export function UserStats() {
   const totalWinnings = (totalWinningsData as bigint | undefined) ?? 0n;
 
   // V2 Contract Reads
-  const { data: v2Portfolio } = useReadContract({
+  // V2 portfolio tuple: [totalInvested, totalWinnings, unrealizedPnL, realizedPnL, tradeCount]
+  type V2PortfolioTuple = readonly [bigint, bigint, bigint, bigint, bigint];
+  const { data: v2PortfolioTuple } = useReadContract({
     address: V2contractAddress,
     abi: V2contractAbi,
     functionName: "userPortfolios",
-    args: [accountAddress!],
-    query: { enabled: !!accountAddress },
-  });
-
-  const { data: v2TotalWinnings } = useReadContract({
-    address: V2contractAddress,
-    abi: V2contractAbi,
-    functionName: "totalWinnings",
     args: [accountAddress!],
     query: { enabled: !!accountAddress },
   });
@@ -198,9 +194,7 @@ export function UserStats() {
         ]);
 
         // For now, V2 vote count is 0 until the contract has user history functions
-        const v2TradeCount = v2Portfolio
-          ? Number((v2Portfolio as any).tradeCount || 0)
-          : 0;
+        const v2TradeCount = v2PortfolioTuple ? Number(v2PortfolioTuple[4]) : 0;
 
         if (v1VoteCount === 0n && v2TradeCount === 0) {
           setStats({
@@ -217,19 +211,13 @@ export function UserStats() {
             v2Wins: 0,
             v2Losses: 0,
             v2TradeCount: 0,
-            v2Portfolio: v2Portfolio
+            v2Portfolio: v2PortfolioTuple
               ? {
-                  totalInvested: BigInt(
-                    (v2Portfolio as any).totalInvested || 0
-                  ),
-                  totalWinnings: BigInt(
-                    (v2Portfolio as any).totalWinnings || 0
-                  ),
-                  unrealizedPnL: BigInt(
-                    (v2Portfolio as any).unrealizedPnL || 0
-                  ),
-                  realizedPnL: BigInt((v2Portfolio as any).realizedPnL || 0),
-                  tradeCount: Number((v2Portfolio as any).tradeCount || 0),
+                  totalInvested: v2PortfolioTuple[0],
+                  totalWinnings: v2PortfolioTuple[1],
+                  unrealizedPnL: v2PortfolioTuple[2],
+                  realizedPnL: v2PortfolioTuple[3],
+                  tradeCount: Number(v2PortfolioTuple[4]),
                 }
               : undefined,
           });
@@ -264,8 +252,8 @@ export function UserStats() {
         // Fetch V2 trades using getUserPortfolio to get trade count
         const v2Trades: any[] = [];
         try {
-          if (v2Portfolio) {
-            const tradeCount = Number((v2Portfolio as any).tradeCount || 0);
+          if (v2PortfolioTuple) {
+            const tradeCount = Number(v2PortfolioTuple[4]);
 
             if (tradeCount > 0) {
               // Fetch all trades by index
@@ -315,8 +303,8 @@ export function UserStats() {
           try {
             for (const marketId of v2MarketIds) {
               const marketInfo = await publicClient.readContract({
-                address: V2contractAddress,
-                abi: V2contractAbi,
+                address: PolicastViews as `0x${string}`,
+                abi: PolicastViewsAbi,
                 functionName: "getMarketInfo",
                 args: [BigInt(marketId)],
               });
@@ -460,14 +448,13 @@ export function UserStats() {
         const winRate = totalVotes > 0 ? (totalWins / totalVotes) * 100 : 0;
 
         // Combine V1 and V2 investment amounts
-        const v2TotalInvested = v2Portfolio
-          ? BigInt((v2Portfolio as any).totalInvested || 0)
-          : 0n;
+        const v2TotalInvested = v2PortfolioTuple ? v2PortfolioTuple[0] : 0n;
         const combinedTotalInvested = totalInvested + v2TotalInvested;
 
         // Combine V1 and V2 winnings
-        const v2TotalWinningsAmount =
-          (v2TotalWinnings as bigint | undefined) ?? 0n;
+        const v2TotalWinningsAmount = v2PortfolioTuple
+          ? v2PortfolioTuple[1]
+          : 0n;
         const combinedNetWinnings = totalWinnings + v2TotalWinningsAmount;
 
         const newStats = {
@@ -485,13 +472,13 @@ export function UserStats() {
           v2Wins,
           v2Losses,
           v2TradeCount: v2Trades.length,
-          v2Portfolio: v2Portfolio
+          v2Portfolio: v2PortfolioTuple
             ? {
-                totalInvested: BigInt((v2Portfolio as any).totalInvested || 0),
-                totalWinnings: BigInt((v2Portfolio as any).totalWinnings || 0),
-                unrealizedPnL: BigInt((v2Portfolio as any).unrealizedPnL || 0),
-                realizedPnL: BigInt((v2Portfolio as any).realizedPnL || 0),
-                tradeCount: Number((v2Portfolio as any).tradeCount || 0),
+                totalInvested: v2PortfolioTuple[0],
+                totalWinnings: v2PortfolioTuple[1],
+                unrealizedPnL: v2PortfolioTuple[2],
+                realizedPnL: v2PortfolioTuple[3],
+                tradeCount: Number(v2PortfolioTuple[4]),
               }
             : undefined,
         };
@@ -532,7 +519,7 @@ export function UserStats() {
         setIsLoading(false);
       }
     },
-    [toast, totalWinnings, v2Portfolio, v2TotalWinnings]
+    [toast, totalWinnings, v2PortfolioTuple]
   );
 
   useEffect(() => {

@@ -18,6 +18,7 @@ import { useMarketData } from "@/hooks/useSubgraphData";
 interface FreeMarketClaimStatusProps {
   marketId: number;
   className?: string;
+  marketType?: number; // Optional marketType prop to avoid subgraph dependency
 }
 
 // Format price with proper decimals
@@ -31,7 +32,16 @@ function formatPrice(price: bigint, decimals: number = 18): string {
 export function FreeMarketClaimStatus({
   marketId,
   className = "",
+  marketType,
 }: FreeMarketClaimStatusProps) {
+  // Debug helper (gated by env var to avoid noisy prod logs)
+  const debug = (...args: any[]) => {
+    if (process.env.NEXT_PUBLIC_DEBUG_FREE_MARKET === "true") {
+      // eslint-disable-next-line no-console
+      console.debug("[FreeMarketClaimStatus]", ...args);
+    }
+  };
+
   const { address } = useAccount();
   const { toast } = useToast();
   const [hasShownSuccessToast, setHasShownSuccessToast] = useState(false);
@@ -62,15 +72,45 @@ export function FreeMarketClaimStatus({
     },
   });
 
-  // Get market data from subgraph
+  // Get market data from subgraph (only if marketType not provided)
   const { market, isLoading: isLoadingMarket } = useMarketData(marketId);
 
-  // Compute free market config values if market is available
+  // Get free market info directly from contract
+  const { data: freeMarketInfoContract } = (useReadContract as any)({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getFreeMarketInfo",
+    args: [BigInt(marketId)],
+    query: {
+      enabled: marketType === 1 || (market && market.marketType === "FREE"),
+      refetchInterval: 10000,
+    },
+  });
+
+  // Use contract data if marketType is provided, otherwise use subgraph
+  const isFreeMarket =
+    marketType !== undefined ? marketType === 1 : market?.marketType === "FREE";
+
+  debug("render start", {
+    marketId,
+    addressPresent: !!address,
+    providedMarketType: marketType,
+    subgraphMarketType: market?.marketType,
+    isFreeMarket,
+  });
+
+  // Parse free market info from contract: [maxFreeParticipants, tokensPerParticipant, currentFreeParticipants, totalPrizePool, remainingPrizePool, isActive]
+  const contractFreeInfo = freeMarketInfoContract as
+    | [bigint, bigint, bigint, bigint, bigint, boolean]
+    | undefined;
+
+  // Compute free market config values
   const freeMarketConfig = market?.freeMarketConfig;
-  const tokensPerParticipant =
-    freeMarketConfig && freeMarketConfig.tokensPerParticipant
-      ? BigInt(freeMarketConfig.tokensPerParticipant)
-      : 0n;
+  const tokensPerParticipant = contractFreeInfo
+    ? contractFreeInfo[1]
+    : freeMarketConfig && freeMarketConfig.tokensPerParticipant
+    ? BigInt(freeMarketConfig.tokensPerParticipant)
+    : 0n;
 
   // Handle claim error
   useEffect(() => {
@@ -95,8 +135,7 @@ export function FreeMarketClaimStatus({
     if (
       isClaimConfirmed &&
       !hasShownSuccessToast &&
-      freeMarketConfig &&
-      tokensPerParticipant
+      tokensPerParticipant > 0n
     ) {
       setHasShownSuccessToast(true);
       toast({
@@ -107,36 +146,63 @@ export function FreeMarketClaimStatus({
         )} tokens for this free market.`,
       });
     }
-  }, [
-    isClaimConfirmed,
-    hasShownSuccessToast,
-    freeMarketConfig,
-    tokensPerParticipant,
-    toast,
-  ]);
+  }, [isClaimConfirmed, hasShownSuccessToast, tokensPerParticipant, toast]);
 
   // Early returns after all hooks
-  if (!address || !market || isLoadingMarket) {
+  // If not a free market at all, exit silently (badge on card already communicates Free Entry)
+  if (!isFreeMarket) {
+    debug("early-return: market not free", {
+      providedMarketType: marketType,
+      subgraphMarketType: market?.marketType,
+    });
     return null;
   }
 
-  // Check if market is free entry
-  const isFreeMarket = market.marketType === "FREE";
-  if (!isFreeMarket || !market.freeMarketConfig) {
-    return null;
+  // Loading placeholder while contract free info is fetching (explicit marketType path)
+  if (marketType === 1 && !contractFreeInfo) {
+    return (
+      <div
+        className={`flex items-center gap-2 text-xs text-gray-500 ${className}`}
+      >
+        <div className="h-5 w-24 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+        <div className="h-6 w-14 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+      </div>
+    );
   }
+
+  // Loading placeholder for subgraph path
+  if (
+    marketType === undefined &&
+    (isLoadingMarket || !market || !market.freeMarketConfig)
+  ) {
+    return (
+      <div
+        className={`flex items-center gap-2 text-xs text-gray-500 ${className}`}
+      >
+        <div className="h-5 w-24 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+        <div className="h-6 w-14 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+      </div>
+    );
+  }
+
+  // We intentionally still show UI for disconnected wallets (prompt)
+  const walletConnected = !!address;
 
   const hasUserClaimed = claimStatus ? claimStatus[0] : false;
   const tokensReceived = claimStatus ? claimStatus[1] : 0n;
 
-  const maxParticipants =
-    freeMarketConfig && freeMarketConfig.maxFreeParticipants
-      ? BigInt(freeMarketConfig.maxFreeParticipants)
-      : 0n;
-  const currentParticipants =
-    freeMarketConfig && freeMarketConfig.currentFreeParticipants
-      ? BigInt(freeMarketConfig.currentFreeParticipants)
-      : 0n;
+  const maxParticipants = contractFreeInfo
+    ? contractFreeInfo[0]
+    : freeMarketConfig && freeMarketConfig.maxFreeParticipants
+    ? BigInt(freeMarketConfig.maxFreeParticipants)
+    : 0n;
+
+  const currentParticipants = contractFreeInfo
+    ? contractFreeInfo[2]
+    : freeMarketConfig && freeMarketConfig.currentFreeParticipants
+    ? BigInt(freeMarketConfig.currentFreeParticipants)
+    : 0n;
+
   const slotsRemaining = maxParticipants - currentParticipants;
 
   // Handle claiming free tokens
@@ -167,6 +233,11 @@ export function FreeMarketClaimStatus({
           <Gift className="h-3 w-3 mr-1" />
           Claimed {formatPrice(tokensReceived, 18)} tokens
         </Badge>
+      ) : !walletConnected ? (
+        <Badge className="bg-purple-100 text-purple-800 border-purple-200">
+          <Gift className="h-3 w-3 mr-1" />
+          Connect to claim free tokens
+        </Badge>
       ) : slotsRemaining > 0n ? (
         <div className="flex items-center gap-2">
           <Badge className="bg-blue-100 text-blue-800 border-blue-200">
@@ -175,7 +246,7 @@ export function FreeMarketClaimStatus({
           </Badge>
           <Button
             onClick={handleClaimFreeTokens}
-            disabled={isClaimPending || isClaimConfirming || !address}
+            disabled={isClaimPending || isClaimConfirming || !walletConnected}
             size="sm"
             className="h-6 px-2 text-xs bg-blue-600 hover:bg-blue-700"
           >
@@ -200,7 +271,7 @@ export function FreeMarketClaimStatus({
       )}
 
       {/* Detailed Info */}
-      {!hasUserClaimed && (
+      {!hasUserClaimed && walletConnected && (
         <div className="text-xs text-gray-600">
           <div className="flex items-center justify-between">
             <span>Slots remaining:</span>

@@ -29,6 +29,7 @@ Buster-mkt enables anyone to participate in decentralized prediction markets. Us
 
 - **Onchain Markets:** Create, trade, and resolve prediction markets transparently on the blockchain.
 - **ERC20 Token Betting:** All bets and payouts use a standard ERC20 token.
+- **Admin Tools:** Comprehensive admin dashboard for market management, withdrawals, role management, and validation.
 - **User Analytics:** Track your performance, net winnings, and leaderboard position.
 - **Satori Image Generation:** Instantly share your stats as beautiful images.
 - **Farcaster Mini-app:** Share and interact with markets directly from Farcaster frames.
