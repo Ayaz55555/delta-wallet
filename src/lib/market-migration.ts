@@ -126,67 +126,101 @@ export async function fetchV1Market(marketId: number): Promise<Market> {
 
 // Fetch V2 market data
 export async function fetchV2Market(marketId: number): Promise<MarketV2> {
-  const marketInfoRaw = await publicClient.readContract({
-    address: PolicastViews,
-    abi: PolicastViewsAbi,
-    functionName: "getMarketInfo",
-    args: [BigInt(marketId)],
-  });
+  // Use explicit getters on the V2 contract for reliable fields. Some
+  // deployments / view contracts have returned tuples with different shapes
+  // historically, so instead of relying on tuple indices from
+  // PolicastViews.getMarketInfo we call the contract helper methods that
+  // clearly define where `validated` and `invalidated` live.
+  //
+  // getMarketBasicInfo (on V2 contract) returns a stable tuple including
+  // optionCount and invalidated. getMarketExtendedMeta contains validated
+  // and other metadata. We'll merge results deterministically.
 
-  const marketInfoArr = marketInfoRaw as unknown as readonly any[];
-
-  // The V2 `getMarketInfo` shape has changed across versions. Support both
-  // legacy (short) and newer (long) tuple shapes by checking length and
-  // mapping indices defensively.
-  let question = "";
-  let description = "";
-  let endTime: bigint = 0n;
-  let category: MarketCategory = 0 as MarketCategory;
-  let optionCount: bigint = 0n;
-  let resolved = false;
-  let disputed = false;
-  let marketTypeValue: number = 0;
-  let invalidated = false;
-  let validated = false;
-  let totalVolume: bigint = 0n;
-  let winningOptionId: bigint = 0n;
-  let creator = "";
-  let earlyResolutionAllowed = false;
-
-  if (marketInfoArr.length >= 13) {
-    // Newer V2 shape (13+ entries)
-    // Based on V2 contract ABI:
-    // 0: question, 1: description, 2: endTime, 3: category, 4: optionCount,
-    // 5: resolved, 6: winningOptionId, 7: disputed, 8: validated, 9: invalidated,
-    // 10: totalVolume, 11: creator, 12: earlyResolutionAllowed
-    question = String(marketInfoArr[0] ?? "");
-    description = String(marketInfoArr[1] ?? "");
-    endTime = BigInt(marketInfoArr[2] ?? 0n);
-    category = Number(marketInfoArr[3] ?? 0) as MarketCategory;
-    optionCount = BigInt(marketInfoArr[4] ?? 0n);
-    resolved = Boolean(marketInfoArr[5]);
-    winningOptionId = BigInt(marketInfoArr[6] ?? 0n);
-    disputed = Boolean(marketInfoArr[7]);
-    // Note: validated is at index 8, invalidated is at index 9
-    validated = Boolean(marketInfoArr[8]);
-    invalidated = Boolean(marketInfoArr[9]);
-    totalVolume = BigInt(marketInfoArr[10] ?? 0n);
-    creator = String(marketInfoArr[11] ?? "");
-    earlyResolutionAllowed = Boolean(marketInfoArr[12]);
-  } else {
-    // Legacy/shorter shape used previously
-    question = String(marketInfoArr[0] ?? "");
-    description = String(marketInfoArr[1] ?? "");
-    endTime = BigInt(marketInfoArr[2] ?? 0n);
-    category = Number(marketInfoArr[3] ?? 0) as MarketCategory;
-    optionCount = BigInt(marketInfoArr[4] ?? 0n);
-    resolved = Boolean(marketInfoArr[5]);
-    disputed = Boolean(marketInfoArr[6]);
-    marketTypeValue = Number(marketInfoArr[7] ?? 0);
-    invalidated = Boolean(marketInfoArr[8]);
-    totalVolume = BigInt(marketInfoArr[9] ?? 0n);
-    // winningOptionId / creator / earlyResolutionAllowed not present in legacy
+  // Primary: read basic info from V2 contract
+  let basicInfo: any = null;
+  try {
+    basicInfo = await publicClient.readContract({
+      address: V2contractAddress,
+      abi: V2contractAbi,
+      functionName: "getMarketBasicInfo",
+      args: [BigInt(marketId)],
+    });
+  } catch (err) {
+    // Fallback: try PolicastViews.getMarketInfo if basic info isn't available
+    console.warn(
+      `getMarketBasicInfo failed for ${marketId}, falling back:`,
+      err
+    );
   }
+
+  // Extended meta (contains validated / creator / earlyResolutionAllowed)
+  let extendedMeta: any = null;
+  try {
+    extendedMeta = await publicClient.readContract({
+      address: V2contractAddress,
+      abi: V2contractAbi,
+      functionName: "getMarketExtendedMeta",
+      args: [BigInt(marketId)],
+    });
+  } catch (err) {
+    console.warn(`getMarketExtendedMeta failed for ${marketId}:`, err);
+  }
+
+  // Also attempt to read the view-based getMarketInfo as a last resort to
+  // populate question/description/endTime when available.
+  let viewInfo: any = null;
+  try {
+    viewInfo = await publicClient.readContract({
+      address: PolicastViews,
+      abi: PolicastViewsAbi,
+      functionName: "getMarketInfo",
+      args: [BigInt(marketId)],
+    });
+  } catch (err) {
+    // ignore - we'll use whatever we managed to fetch
+  }
+
+  // Map fields from available responses with safe fallbacks
+  const question = String(
+    (viewInfo && viewInfo[0]) || (basicInfo && basicInfo[0]) || ""
+  );
+  const description = String(
+    (viewInfo && viewInfo[1]) || (basicInfo && basicInfo[1]) || ""
+  );
+  const endTime: bigint = BigInt(
+    (viewInfo && viewInfo[2]) || (basicInfo && basicInfo[2]) || 0n
+  );
+  const category: MarketCategory = Number(
+    (viewInfo && viewInfo[3]) || (basicInfo && basicInfo[3]) || 0
+  ) as MarketCategory;
+
+  const optionCount: bigint = basicInfo
+    ? BigInt(basicInfo[4] ?? 0n)
+    : BigInt((viewInfo && viewInfo[4]) ?? 0n);
+  const resolved = Boolean(
+    (basicInfo && basicInfo[5]) || (viewInfo && viewInfo[5])
+  );
+  const marketTypeValue = Number(
+    (basicInfo && basicInfo[6]) || (viewInfo && viewInfo[4]) || 0
+  );
+  const invalidated = Boolean(
+    (basicInfo && basicInfo[7]) || (viewInfo && viewInfo[6])
+  );
+  const totalVolume: bigint = basicInfo
+    ? BigInt(basicInfo[8] ?? 0n)
+    : BigInt((viewInfo && viewInfo[9]) ?? 0n);
+
+  const winningOptionId: bigint = extendedMeta
+    ? BigInt(extendedMeta[0] ?? 0n)
+    : BigInt(0n);
+  const disputed = extendedMeta ? Boolean(extendedMeta[1]) : false;
+  const validated = extendedMeta ? Boolean(extendedMeta[2]) : false;
+  const creator = extendedMeta
+    ? String(extendedMeta[3] ?? ((basicInfo && basicInfo[11]) || ""))
+    : String((basicInfo && basicInfo[11]) || "");
+  const earlyResolutionAllowed = extendedMeta
+    ? Boolean(extendedMeta[4])
+    : Boolean((viewInfo && viewInfo[12]) || false);
 
   // Fetch all options
   const options: MarketOption[] = [];
