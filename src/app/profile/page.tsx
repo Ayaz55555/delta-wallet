@@ -34,7 +34,7 @@ export default function ProfilePage() {
               <div className="lg:col-span-1 space-y-6">
                 <UserStats />
 
-                {/* V2 Analytics Quick Access */}
+                {/* V2 Analytics Quick Access
                 <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-purple-50">
                   <CardContent className="p-6">
                     <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -87,7 +87,7 @@ export default function ProfilePage() {
                       </Link>
                     </div>
                   </CardContent>
-                </Card>
+                </Card> */}
               </div>
 
               {/* Activity Feed */}
@@ -98,7 +98,7 @@ export default function ProfilePage() {
                       Activity Feed
                     </h2>
                     <Badge variant="outline" className="text-sm">
-                      Recent Votes
+                      Recent Markets
                     </Badge>
                   </div>
                   <VoteHistory />

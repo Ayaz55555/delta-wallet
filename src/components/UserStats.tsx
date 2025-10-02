@@ -690,7 +690,7 @@ export function UserStats() {
               <div className="space-y-3">
                 <h3 className="text-base md:text-lg font-semibold text-gray-800 flex items-center gap-2">
                   <span className="w-2 h-2 md:w-3 md:h-3 bg-blue-500 rounded-full"></span>
-                  Binary Markets (V1)
+                  Binary Markets
                 </h3>
                 <div className="grid grid-cols-2 gap-2 md:gap-3">
                   <StatCard
@@ -740,7 +740,7 @@ export function UserStats() {
               <div className="space-y-3">
                 <h3 className="text-base md:text-lg font-semibold text-gray-800 flex items-center gap-2">
                   <span className="w-2 h-2 md:w-3 md:h-3 bg-green-500 rounded-full"></span>
-                  Multi-Option Markets (V2)
+                  Multi-Option Markets
                 </h3>
                 <div className="grid grid-cols-2 gap-2 md:gap-3">
                   <StatCard
