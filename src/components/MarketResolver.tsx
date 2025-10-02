@@ -421,17 +421,6 @@ export function MarketResolver() {
       const now = Math.floor(Date.now() / 1000);
       const endTime = Number(selectedMarket.endTime);
       const timeUntilEnd = endTime - now;
-
-      // Must be at least 1 hour before end time for early resolution
-      // if (timeUntilEnd < 3600) {
-      //   toast({
-      //     title: "Cannot Resolve Early",
-      //     description:
-      //       "Event-based markets must be resolved at least 1 hour before the scheduled end time.",
-      //     variant: "destructive",
-      //   });
-      //   return;
-      // }
     }
 
     try {
