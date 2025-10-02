@@ -331,7 +331,7 @@ export function MarketV2PositionManager({
     }
 
     const currentValue =
-      shares > 0n ? (shares * currentPrice) / BigInt(10 ** 18) : 0n;
+      shares > 0n ? (shares * currentPrice * 100n) / BigInt(10 ** 18) : 0n;
 
     // Calculate P&L using cost basis from contract
     let unrealizedPnL = 0n;
@@ -563,7 +563,8 @@ export function MarketV2PositionManager({
                             {tokenSymbol || "TOKENS"}
                           </div>
                           <div className="text-xs md:text-sm text-gray-600">
-                            @ {formatPrice(position.currentPrice)} per share
+                            @ {formatPrice(position.currentPrice * 100n)} per
+                            share
                             {optionQueries[position.optionId]?.isRefetching && (
                               <RefreshCw className="inline ml-1 h-3 w-3 animate-spin text-blue-500" />
                             )}
