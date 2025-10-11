@@ -117,7 +117,7 @@ export function FreeMarketClaimStatus({
     if (claimError) {
       toast({
         title: "Claim Failed",
-        description: claimError.message || "Failed to claim free tokens",
+        description: claimError.message || "Failed to claim free shares",
         variant: "destructive",
       });
     }
@@ -208,7 +208,7 @@ export function FreeMarketClaimStatus({
   // Handle claiming free tokens
   const handleClaimFreeTokens = async () => {
     try {
-      console.log("🎁 Claiming free tokens for market:", marketId);
+      console.log("🎁 Claiming free shares for market:", marketId);
       claimFreeTokens({
         address: V2contractAddress,
         abi: V2contractAbi,
@@ -216,10 +216,10 @@ export function FreeMarketClaimStatus({
         args: [BigInt(marketId)],
       });
     } catch (error: any) {
-      console.error("❌ Error claiming free tokens:", error);
+      console.error("❌ Error claiming free shares:", error);
       toast({
         title: "Claim Failed",
-        description: error.message || "Failed to claim free tokens",
+        description: error.message || "Failed to claim free shares",
         variant: "destructive",
       });
     }
@@ -236,7 +236,7 @@ export function FreeMarketClaimStatus({
       ) : !walletConnected ? (
         <Badge className="bg-purple-100 text-purple-800 border-purple-200">
           <Gift className="h-3 w-3 mr-1" />
-          Connect to claim free tokens
+          Connect to claim free shares
         </Badge>
       ) : slotsRemaining > 0n ? (
         <div className="flex items-center gap-2">

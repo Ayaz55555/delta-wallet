@@ -260,7 +260,7 @@ export function FreeTokenClaimButton({
     try {
       const marketPageUrl = `${appUrl}/market/${marketId}/details`;
       await sdk.actions.composeCast({
-        text: `I just claimed free tokens on this Policast market! Check it out:`,
+        text: `I just claimed free shares on this Policast market! Check it out:`,
         embeds: [marketPageUrl],
       });
     } catch (error) {
@@ -287,7 +287,7 @@ export function FreeTokenClaimButton({
       toast({
         title: "Already Claimed",
         description:
-          "You have already claimed your free tokens for this market.",
+          "You have already claimed your free shares for this market.",
         variant: "destructive",
       });
       return;
@@ -323,7 +323,7 @@ export function FreeTokenClaimButton({
     if (!selectedOptionId) {
       toast({
         title: "Select an outcome",
-        description: "Choose the outcome you'd like your free tokens to back.",
+        description: "Choose the outcome you'd like your free shares to back.",
         variant: "destructive",
       });
       return;
@@ -348,7 +348,7 @@ export function FreeTokenClaimButton({
         // Handle specific contract errors
         if (errorMessage.includes("AlreadyClaimedFree")) {
           errorMessage =
-            "You have already claimed free tokens for this market.";
+            "You have already claimed free shares for this market.";
         } else if (errorMessage.includes("FreeSlotseFull")) {
           errorMessage = "All free token slots have been claimed.";
         } else if (errorMessage.includes("FreeEntryInactive")) {
@@ -375,7 +375,7 @@ export function FreeTokenClaimButton({
 
       if (txReceipt.status === "success") {
         toast({
-          title: "🎉 Free Tokens Claimed Successfully!",
+          title: "🎉 Free shares Claimed Successfully!",
           description: (
             <div className="flex flex-col gap-2">
               <p>
@@ -430,7 +430,7 @@ export function FreeTokenClaimButton({
 
     let message = baseMessage;
     if (message.toLowerCase().includes("already claimed")) {
-      message = "Already claimed free tokens for this market.";
+      message = "Already claimed free shares for this market.";
       setHasClaimed(true);
     }
 
@@ -486,7 +486,7 @@ export function FreeTokenClaimButton({
             <div className="flex items-center gap-2">
               <Gift className="h-4 w-4 text-green-600" />
               <span className="text-sm font-medium text-green-800 dark:text-green-200">
-                Free Tokens Claimed!
+                Free shares Claimed!
               </span>
             </div>
             <Badge variant="secondary" className="bg-green-100 text-green-700">
@@ -592,7 +592,7 @@ export function FreeTokenClaimButton({
         </div>
         <div className="space-y-1 text-xs text-green-700 dark:text-green-300">
           <div className="flex justify-between">
-            <span>Free tokens per user:</span>
+            <span>Free shares per user:</span>
             <span className="font-medium">
               {formatPrice(tokensPerParticipant, 18)}
             </span>
@@ -667,7 +667,7 @@ export function FreeTokenClaimButton({
         ) : (
           <>
             <Gift className="mr-2 h-4 w-4" />
-            Claim {formatPrice(tokensPerParticipant, 18)} Free Tokens
+            Claim {formatPrice(tokensPerParticipant, 18)} Free shares
           </>
         )}
       </Button>
