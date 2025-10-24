@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+// Ensure this route runs on the Node.js runtime so server env vars are available
+export const runtime = "nodejs";
+// This data changes over time and depends on live chain + Neynar; avoid static optimization
+export const dynamic = "force-dynamic";
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 import NodeCache from "node-cache";
 import {
