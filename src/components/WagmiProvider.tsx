@@ -1,7 +1,7 @@
 "use client";
 
-import { createConfig, WagmiProvider } from "wagmi";
-import { cookieStorage, createStorage, http } from "@wagmi/core";
+import { WagmiProvider } from "wagmi";
+import { cookieStorage, createStorage } from "@wagmi/core";
 import { base } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-connector";
@@ -9,11 +9,13 @@ import { coinbaseWallet } from "wagmi/connectors";
 import { useEffect, useState, createContext, useContext } from "react";
 import { useConnect, useAccount, useDisconnect } from "wagmi";
 import React from "react";
-import { createAppKit } from "@reown/appkit/react";
+import { createAppKit, useAppKit } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 
 // Get projectId from https://dashboard.reown.com
-export const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+export const projectId =
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
+  "b56e18d47c72ab683b10814fe9495694";
 
 if (!projectId) {
   throw new Error("Project ID is not defined");
@@ -66,6 +68,7 @@ interface WalletContextType {
   address: string | undefined;
   connectors: readonly any[];
   primaryConnector: any;
+  openModal: () => void;
 }
 
 const WalletContext = createContext<WalletContextType | null>(null);
@@ -174,6 +177,9 @@ function WalletProvider({ children }: { children: React.ReactNode }) {
     isConnecting: wagmiIsConnecting,
   } = useAccount();
 
+  // Get AppKit instance for modal control
+  const { open } = useAppKit();
+
   // Auto-connect logic
   useCoinbaseWalletAutoConnect();
 
@@ -194,10 +200,9 @@ function WalletProvider({ children }: { children: React.ReactNode }) {
           } else {
             console.warn(`Connector with id "${connectorId}" not found`);
           }
-        } else if (primaryConnector) {
-          wagmiConnect({ connector: primaryConnector });
         } else {
-          console.warn("No connectors available");
+          // Use AppKit modal instead of direct connector
+          open();
         }
       } catch (error) {
         console.error("Failed to connect wallet:", error);
@@ -215,6 +220,7 @@ function WalletProvider({ children }: { children: React.ReactNode }) {
     address,
     connectors: wagmiConnectors,
     primaryConnector,
+    openModal: () => open(),
   };
 
   return (
