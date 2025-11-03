@@ -12,7 +12,8 @@ import { createAppKit } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 
 // Constants with proper error handling
-const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+const projectId =
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo-project-id";
 const APP_NAME: string = "Policast";
 const APP_URL: string = process.env.NEXT_PUBLIC_URL || "";
 const APP_ICON_URL: string = APP_URL ? `${APP_URL}/icon.png` : "/icon.png";
