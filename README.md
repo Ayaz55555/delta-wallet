@@ -32,3 +32,70 @@ Delta Wallet Market is a fully on-chain, decentralized prediction trading platfo
 
 ## 📂 Repo Structure
 
+src/ → App source (pages, API, UI)
+docs/ → Architecture & protocol docs
+contract/ → Smart contract core
+subgraph/ → Blockchain indexing layer
+public/ → Static assets
+---
+
+## ⚙️ Local Setup
+
+### 1. Clone & Install
+```sh
+git clone https://github.com/yourusername/delta-wallet.git
+cd delta-wallet
+npm install
+
+cp .env.example .env.local
+
+
+NEXT_PUBLIC_RPC_URL=
+NEXT_PUBLIC_CONTRACT_MARKET=
+NEXT_PUBLIC_CONTRACT_TOKEN=
+
+3. Run
+npm run dev
+
+
+Visit:
+
+http://localhost:3000
+
+Contributing
+
+Contributions are welcome!
+
+Fork the repo
+
+Create a feature branch
+
+Submit a PR with a description
+
+📜 License
+
+MIT © Delta Wallet Labs
+
+
+---
+
+## ✅ Now your GitHub push steps (copy paste in terminal)
+
+```sh
+# 1. Go inside your project folder
+cd Buster-mkt
+
+# 2. Remove old git link (optional but recommended)
+git remote remove origin
+
+# 3. Add your GitHub repo as new origin
+git remote add origin git@github.com:Ayaz55555/delta-wallet.git
+
+# 4. Add all files & commit
+git add .
+git commit -m "Initial commit - Delta Wallet Market launch"
+
+# 5. Push to GitHub
+git branch -M main
+git push -u origin main
+
