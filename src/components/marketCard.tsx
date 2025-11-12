@@ -1,16 +1,5 @@
 "use client";
 
-interface Market {
-  question: string;
-  optionA: string;
-  optionB: string;
-  endTime: bigint;
-  outcome: number;
-  totalOptionAShares: bigint;
-  totalOptionBShares: bigint;
-  resolved: boolean;
-}
-
 export interface Market {
   question: string;
   optionA: string;
@@ -28,7 +17,6 @@ interface MarketCardProps {
 }
 
 export function MarketCard({ index, market }: MarketCardProps) {
-
   return (
     <div className="bg-card p-4 rounded-xl border border-primary/20 hover:border-primary transition-all">
       <h2 className="text-primary font-semibold">{market.question}</h2>
