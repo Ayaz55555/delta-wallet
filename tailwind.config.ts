@@ -15,6 +15,7 @@ const config: Config = {
         card: "#111712",
         foreground: "#B1B1B1",
         secondary: "#B1B1B1",
+        border: "#2a2f2c",
       },
       borderRadius: {
         lg: "var(--radius)",
