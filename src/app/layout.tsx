@@ -18,44 +18,43 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Policast - Political Prediction Markets",
+  title: "Delta Wallet Markets",
   description:
-    "Trade on political outcomes with confidence. Decentralized prediction markets for politics, powered by blockchain technology.",
+    "Trade on outcomes with confidence. Decentralized prediction markets powered by blockchain technology.",
   keywords: [
     "prediction markets",
-    "political betting",
+    "betting",
     "decentralized",
     "blockchain",
     "crypto",
-    "politics",
     "trading",
   ],
-  authors: [{ name: "Policast Team" }],
-  creator: "Policast",
-  publisher: "Policast",
+  authors: [{ name: "Delta Wallet Team" }],
+  creator: "Delta Wallet",
+  publisher: "Delta Wallet",
   formatDetection: {
     email: false,
     address: false,
     telephone: false,
   },
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_URL || "https://buster-mkt.vercel.app"
+    process.env.NEXT_PUBLIC_URL || "https://delta-wallet.vercel.app"
   ),
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "Policast - Political Prediction Markets",
+    title: "Delta Wallet Markets",
     description:
-      "Trade on political outcomes with confidence. Decentralized prediction markets for politics, powered by blockchain technology.",
-    url: process.env.NEXT_PUBLIC_URL || "https://buster-mkt.vercel.app",
-    siteName: "Policast",
+      "Trade on outcomes with confidence. Decentralized prediction markets powered by blockchain technology.",
+    url: process.env.NEXT_PUBLIC_URL || "https://delta-wallet.vercel.app",
+    siteName: "Delta Wallet",
     images: [
       {
         url: "/icon.jpg",
         width: 1200,
         height: 630,
-        alt: "Policast - Political Prediction Markets",
+        alt: "Delta Wallet Markets",
       },
     ],
     locale: "en_US",
@@ -63,11 +62,11 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Policast - Political Prediction Markets",
+    title: "Delta Wallet Markets",
     description:
-      "Trade on political outcomes with confidence. Decentralized prediction markets for politics, powered by blockchain technology.",
+      "Trade on outcomes with confidence. Decentralized prediction markets powered by blockchain technology.",
     images: ["/icon.jpg"],
-    creator: "@policastapp",
+    creator: "@delta_wallet",
   },
   robots: {
     index: true,
